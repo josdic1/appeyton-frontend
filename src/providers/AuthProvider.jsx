@@ -7,7 +7,6 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Hard reset: Nukes token and forces a clean page load to prevent state ghosts
   const forceLogout = useCallback(() => {
     localStorage.removeItem("token");
     setUser(null);
@@ -22,11 +21,9 @@ export function AuthProvider({ children }) {
       if (!token) return setLoading(false);
 
       try {
-        // Retry logic handles blips in connection without kicking the user out
-        const userData = await retryRequest(() => api.get("/users/me"));
+        const userData = await retryRequest(() => api.get("/api/users/me"));
         setUser(userData);
       } catch (err) {
-        // Global 401 check: If unauthorized, don't ask questions, just logout.
         if (err?.message?.includes("401")) {
           forceLogout();
         } else {
@@ -42,7 +39,7 @@ export function AuthProvider({ children }) {
 
   const login = async (credentials) => {
     try {
-      const data = await api.post("/auth/login", credentials);
+      const data = await api.post("/api/users/login", credentials); // Fixed endpoint
       const token = data?.access_token || data?.token;
 
       if (token) {
@@ -58,7 +55,7 @@ export function AuthProvider({ children }) {
 
   const signup = async (formData) => {
     try {
-      await api.post("/auth/signup", formData);
+      await api.post("/api/users/register", formData); // Fixed endpoint
       return await login({
         email: formData.email,
         password: formData.password,

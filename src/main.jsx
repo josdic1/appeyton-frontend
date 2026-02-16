@@ -1,18 +1,21 @@
 // src/main.jsx
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
+import React from "react";
+import ReactDOM from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
-import { AuthProvider } from "./providers/AuthProvider.jsx";
-import { DataProvider } from "./providers/DataProvider.jsx";
-import { router } from "./routes.jsx";
+import { AuthProvider } from "./providers/AuthProvider";
+import { DataProvider } from "./providers/DataProvider";
+import { ToastProvider } from "./providers/ToastProvider";
+import { routes } from "./routes";
 import "./index.css";
 
-createRoot(document.getElementById("root")).render(
-  <StrictMode>
-    <AuthProvider>
-      <DataProvider>
-        <RouterProvider router={router} />
-      </DataProvider>
-    </AuthProvider>
-  </StrictMode>,
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <ToastProvider>
+      <AuthProvider>
+        <DataProvider>
+          <RouterProvider router={routes} />
+        </DataProvider>
+      </AuthProvider>
+    </ToastProvider>
+  </React.StrictMode>,
 );

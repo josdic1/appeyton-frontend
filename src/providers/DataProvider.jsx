@@ -1,218 +1,168 @@
 // src/providers/DataProvider.jsx
-import {
-  useState,
-  useEffect,
-  useContext,
-  useCallback,
-  useMemo,
-  useRef,
-} from "react";
+import { useState, useContext, useCallback, useMemo } from "react";
 import { DataContext } from "../contexts/DataContext";
 import { AuthContext } from "../contexts/AuthContext";
 import { api, retryRequest } from "../utils/api";
-import { safe, asArrayOfObjects } from "../utils/safe";
-
-const CACHE_TTL_MS = 5 * 60 * 1000;
 
 export function DataProvider({ children }) {
-  const { user, loading: authLoading } = useContext(AuthContext);
-  const loggedIn = !!user;
+  const { user } = useContext(AuthContext);
 
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [entities, setEntities] = useState([]);
 
-  // Ref to prevent multiple simultaneous "refresh/bootstrap" calls
-  const isFetching = useRef(false);
+  // Sterling Catering data
+  const [rooms, setRooms] = useState([]);
+  const [tables, setTables] = useState([]);
+  const [reservations, setReservations] = useState([]);
+  const [menuItems, setMenuItems] = useState([]);
 
-  const cacheKey = useMemo(
-    () => (user?.id ? `bagger_cache_u${user.id}` : null),
-    [user?.id],
-  );
-
-  const writeCache = useCallback(
-    (nextEntities) => {
-      if (!cacheKey) return;
-      try {
-        localStorage.setItem(
-          cacheKey,
-          JSON.stringify({ entities: asArrayOfObjects(nextEntities) }),
-        );
-        localStorage.setItem(`${cacheKey}_time`, String(Date.now()));
-      } catch (e) {
-        console.error("Cache write failed", e);
-      }
-    },
-    [cacheKey],
-  );
-
-  const readCache = useCallback(() => {
-    if (!cacheKey) return null;
-
-    const cachedData = localStorage.getItem(cacheKey);
-    const cacheTime = localStorage.getItem(`${cacheKey}_time`);
-    if (!cachedData || !cacheTime) return null;
-
-    const age = Date.now() - Number(cacheTime);
-    if (Number.isNaN(age) || age > CACHE_TTL_MS) return null;
-
+  // Fetch dining rooms
+  const fetchRooms = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
     try {
-      const parsed = JSON.parse(cachedData);
-      return {
-        entities: asArrayOfObjects(parsed?.entities),
-      };
-    } catch {
-      localStorage.removeItem(cacheKey);
-      localStorage.removeItem(`${cacheKey}_time`);
-      return null;
+      const data = await retryRequest(() => api.get("/api/dining-rooms"));
+      setRooms(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err);
+      console.error("Failed to fetch rooms:", err);
+    } finally {
+      setLoading(false);
     }
-  }, [cacheKey]);
+  }, [user]);
 
-  const clearCache = useCallback(() => {
-    if (!cacheKey) return;
-    localStorage.removeItem(cacheKey);
-    localStorage.removeItem(`${cacheKey}_time`);
-  }, [cacheKey]);
+  // Fetch all tables
+  const fetchTables = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      // Fetch tables for each room and combine
+      const roomsData = await retryRequest(() => api.get("/api/dining-rooms"));
+      const allTables = [];
 
-  // Fixed the setPlatforms/setEntities naming mismatch
-  const applyBootstrap = useCallback((data) => {
-    const nextEntities = asArrayOfObjects(data?.entities);
-    setEntities(nextEntities);
-    return { nextEntities };
+      for (const room of roomsData) {
+        const tablesData = await retryRequest(() =>
+          api.get(`/api/dining-rooms/${room.id}/tables`),
+        );
+        allTables.push(...(Array.isArray(tablesData) ? tablesData : []));
+      }
+
+      setTables(allTables);
+    } catch (err) {
+      setError(err);
+      console.error("Failed to fetch tables:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  // Fetch reservations
+  const fetchReservations = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const data = await retryRequest(() => api.get("/api/reservations"));
+      setReservations(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err);
+      console.error("Failed to fetch reservations:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  // Fetch menu items
+  const fetchMenuItems = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const data = await retryRequest(() => api.get("/api/menu-items"));
+      setMenuItems(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err);
+      console.error("Failed to fetch menu items:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  // Create reservation
+  const createReservation = useCallback(async (reservationData) => {
+    try {
+      const newReservation = await retryRequest(() =>
+        api.post("/api/reservations", reservationData),
+      );
+      setReservations((prev) => [...prev, newReservation]);
+      return { success: true, data: newReservation };
+    } catch (err) {
+      setError(err);
+      return { success: false, error: err.message };
+    }
   }, []);
 
-  const bootstrap = useCallback(async () => {
-    if (!loggedIn || isFetching.current) return;
-    isFetching.current = true;
-    setError(null);
-
-    const cached = readCache();
-    if (cached) {
-      setEntities(cached.entities);
-      setLoading(false);
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-
+  // Update reservation
+  const updateReservation = useCallback(async (reservationId, updates) => {
     try {
-      const data = await retryRequest(() => api.get("/api/users/bootstrap"));
-      const { nextEntities } = applyBootstrap(data);
-      writeCache(nextEntities); // Fixed the variable typo here
+      const updated = await retryRequest(() =>
+        api.patch(`/api/reservations/${reservationId}`, updates),
+      );
+      setReservations((prev) =>
+        prev.map((r) => (r.id === reservationId ? updated : r)),
+      );
+      return { success: true, data: updated };
     } catch (err) {
       setError(err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-      isFetching.current = false;
+      return { success: false, error: err.message };
     }
-  }, [loggedIn, readCache, applyBootstrap, writeCache]);
+  }, []);
 
-  const refresh = useCallback(async () => {
-    if (!loggedIn || isFetching.current) return;
-    isFetching.current = true;
-    setRefreshing(true);
-
+  // Delete reservation
+  const deleteReservation = useCallback(async (reservationId) => {
     try {
-      const data = await retryRequest(() => api.get("/api/users/bootstrap"));
-      const { nextEntities } = applyBootstrap(data);
-      writeCache(nextEntities); // Added cache write on refresh
+      await retryRequest(() =>
+        api.delete(`/api/reservations/${reservationId}`),
+      );
+      setReservations((prev) => prev.filter((r) => r.id !== reservationId));
+      return { success: true };
     } catch (err) {
       setError(err);
-    } finally {
-      setRefreshing(false);
-      isFetching.current = false;
+      return { success: false, error: err.message };
     }
-  }, [loggedIn, applyBootstrap, writeCache]);
-
-  useEffect(() => {
-    if (authLoading) return;
-
-    if (!loggedIn) {
-      clearCache();
-      setEntities([]);
-      setLoading(false);
-      setRefreshing(false);
-      return;
-    }
-
-    bootstrap();
-  }, [authLoading, loggedIn, bootstrap, clearCache]);
-
-  const createEntity = useCallback(
-    async (data) => {
-      try {
-        await retryRequest(() => api.post("/api/entities/", data));
-        await refresh();
-      } catch (err) {
-        setError(err);
-        throw err; // Allow form to handle local error state
-      }
-    },
-    [refresh],
-  );
-
-  const updateEntity = useCallback(
-    async (entityId, updates) => {
-      try {
-        await retryRequest(() =>
-          api.patch(`/api/entities/${entityId}`, updates),
-        );
-        setEntities((prev) => {
-          const next = prev.map((e) =>
-            e.id === entityId ? { ...e, ...updates } : e,
-          );
-          writeCache(next); // Keep cache synced with local updates
-          return next;
-        });
-      } catch (err) {
-        setError(err);
-      }
-    },
-    [writeCache],
-  );
-
-  const deleteEntity = useCallback(
-    async (entityId) => {
-      try {
-        await retryRequest(() => api.delete(`/api/entities/${entityId}`));
-        setEntities((prev) => {
-          const next = prev.filter((e) => e.id !== entityId);
-          writeCache(next); // Keep cache synced
-          return next;
-        });
-      } catch (err) {
-        setError(err);
-      }
-    },
-    [writeCache],
-  );
+  }, []);
 
   const value = useMemo(
     () => ({
       loading,
-      refreshing,
-      entities,
-      createEntity,
-      updateEntity,
-      deleteEntity,
-      bootstrap,
-      refresh,
-      clearCache,
       error,
+      // Data
+      rooms,
+      tables,
+      reservations,
+      menuItems,
+      // Fetch methods
+      fetchRooms,
+      fetchTables,
+      fetchReservations,
+      fetchMenuItems,
+      // CRUD methods
+      createReservation,
+      updateReservation,
+      deleteReservation,
     }),
     [
       loading,
-      refreshing,
-      entities,
-      createEntity,
-      updateEntity,
-      deleteEntity,
-      bootstrap,
-      refresh,
-      clearCache,
       error,
+      rooms,
+      tables,
+      reservations,
+      menuItems,
+      fetchRooms,
+      fetchTables,
+      fetchReservations,
+      fetchMenuItems,
+      createReservation,
+      updateReservation,
+      deleteReservation,
     ],
   );
 

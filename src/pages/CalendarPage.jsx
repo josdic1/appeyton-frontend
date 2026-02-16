@@ -3,7 +3,7 @@ import timeGridPlugin from "@fullcalendar/timegrid";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
 
-export default function CalendarPage() {
+export function CalendarPage() {
   return (
     <div style={{ padding: 16 }}>
       <FullCalendar
