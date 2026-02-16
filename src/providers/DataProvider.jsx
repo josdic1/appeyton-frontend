@@ -10,7 +10,7 @@ import {
 import { DataContext } from "../contexts/DataContext";
 import { AuthContext } from "../contexts/AuthContext";
 import { api, retryRequest } from "../utils/api";
-import { asArrayOfObjects } from "../utils/safe";
+import { safe, asArrayOfObjects } from "../utils/safe";
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 

@@ -26,3 +26,9 @@ export const safe = {
     return `${minutes}m ago`;
   },
 };
+
+// Add this:
+export const asArrayOfObjects = (x) => {
+  if (!Array.isArray(x)) return [];
+  return x.filter((item) => item && typeof item === "object");
+};
