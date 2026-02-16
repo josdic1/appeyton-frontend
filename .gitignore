@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+venv/
+dist/
+dist-ssr/
+
+# Environment / Secrets
+.env
+.env.local
+.env.*.local
+*.env
+
+# Python Cache & Bytecode
+__pycache__/
+*.pyc
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+instance/
+
+# System / IDE
+.DS_Store
+.vscode/
+.idea/
+*.log
+*.iws
+*.iml
+*.ipr
