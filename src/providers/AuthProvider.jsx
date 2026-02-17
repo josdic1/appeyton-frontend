@@ -45,10 +45,13 @@ export function AuthProvider({ children }) {
       if (!token) throw new Error("Invalid server response");
 
       localStorage.setItem("token", token);
-      setUser(data.user); // full user object from login response
+      setUser(data.user);
       return { success: true };
     } catch (err) {
-      return { success: false, error: err.message };
+      // apiRequest throws a plain Error but we need the status for login
+      // so we parse it back out of the message if it was a known HTTP error
+      const status = err.status ?? inferStatus(err.message);
+      return { success: false, error: err.message, status };
     }
   };
 
@@ -77,4 +80,20 @@ export function AuthProvider({ children }) {
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+// Infer status from error message when the status wasn't attached to the Error object.
+// apiRequest throws new Error(errorMsg) which loses the status code — this is a
+// temporary bridge until apiRequest is updated to throw a proper HttpError class.
+function inferStatus(message = "") {
+  if (!message) return null;
+  const m = message.toLowerCase();
+  if (
+    m.includes("account") &&
+    (m.includes("inactive") || m.includes("suspended"))
+  )
+    return 403;
+  if (m.includes("invalid credentials") || m.includes("unauthorized"))
+    return 401;
+  return null;
 }

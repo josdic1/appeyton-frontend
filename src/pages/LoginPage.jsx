@@ -15,29 +15,30 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-
   async function onSubmit(e) {
     e.preventDefault();
     if (submitting) return;
 
+    if (!email || !password) {
+      addToast({
+        type: "error",
+        title: "Missing info",
+        message: "Enter email and password.",
+      });
+      return;
+    }
+
     setSubmitting(true);
     try {
-      if (!email || !password) {
-        addToast({
-          type: "error",
-          title: "Missing info",
-          message: "Enter email and password.",
-        });
-        return;
-      }
-
       const result = await login({ email, password });
 
       if (!result.success) {
+        // 403 = account blocked — show the server message directly
+        // 401 = bad credentials
         addToast({
           type: "error",
-          title: "Login failed",
-          message: result.error || "Unauthorized",
+          title: result.status === 403 ? "Access denied" : "Login failed",
+          message: result.error || "Invalid credentials",
         });
         return;
       }

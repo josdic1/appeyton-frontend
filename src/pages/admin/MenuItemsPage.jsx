@@ -59,7 +59,7 @@ const COLUMNS = [
 
 export function MenuItemsPage() {
   const { items, loading, fetchAll, create, update, remove } =
-    useBase("menu-items");
+    useBase("admin/menu-items");
   const { addToast } = useToastTrigger();
   const [editing, setEditing] = useState(null);
 
