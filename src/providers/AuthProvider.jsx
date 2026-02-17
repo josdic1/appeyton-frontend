@@ -1,7 +1,17 @@
 // src/providers/AuthProvider.jsx
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { AuthContext } from "../contexts/AuthContext";
-import { api, retryRequest } from "../utils/api";
+import { api } from "../utils/api";
+
+function parseToken(token) {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    if (payload.exp * 1000 < Date.now()) return null; // expired
+    return payload; // { user_id, role, exp }
+  } catch {
+    return null;
+  }
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -16,38 +26,27 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    const checkSession = async () => {
-      const token = localStorage.getItem("token");
-      if (!token) return setLoading(false);
+    const token = localStorage.getItem("token");
+    if (!token) return setLoading(false);
 
-      try {
-        const userData = await retryRequest(() => api.get("/api/users/me"));
-        setUser(userData);
-      } catch (err) {
-        if (err?.message?.includes("401")) {
-          forceLogout();
-        } else {
-          console.error("Session sync failed:", err.message);
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkSession();
+    const payload = parseToken(token);
+    if (!payload) {
+      forceLogout();
+    } else {
+      setUser({ id: payload.user_id, role: payload.role });
+    }
+    setLoading(false);
   }, [forceLogout]);
 
   const login = async (credentials) => {
     try {
-      const data = await api.post("/api/users/login", credentials); // Fixed endpoint
-      const token = data?.access_token || data?.token;
+      const data = await api.post("/api/users/login", credentials);
+      const token = data?.access_token;
+      if (!token) throw new Error("Invalid server response");
 
-      if (token) {
-        localStorage.setItem("token", token);
-        setUser(data.user);
-        return { success: true };
-      }
-      throw new Error("Invalid server response");
+      localStorage.setItem("token", token);
+      setUser(data.user); // full user object from login response
+      return { success: true };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -55,7 +54,7 @@ export function AuthProvider({ children }) {
 
   const signup = async (formData) => {
     try {
-      await api.post("/api/users/register", formData); // Fixed endpoint
+      await api.post("/api/users/", formData);
       return await login({
         email: formData.email,
         password: formData.password,

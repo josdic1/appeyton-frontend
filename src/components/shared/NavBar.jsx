@@ -30,8 +30,14 @@ export function NavBar() {
             <Link to="/" data-ui="nav-link">
               Home
             </Link>
-            <Link to="/entities" data-ui="nav-link">
-              Entities
+            <Link to="/menu-items" data-ui="nav-link">
+              Menu Items
+            </Link>
+            <Link to="/dining-rooms" data-ui="nav-link">
+              Dining Rooms
+            </Link>
+            <Link to="/users" data-ui="nav-link">
+              Users
             </Link>
           </>
         )}
@@ -50,7 +56,7 @@ export function NavBar() {
         ) : (
           <>
             <Link to="/entity/new" data-ui="nav-link">
-              + Entity
+              + New
             </Link>
 
             <button

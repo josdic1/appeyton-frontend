@@ -1,8 +1,17 @@
-// src/components/entities/EntityViewModal.jsx
+// src/components/base/BaseViewModal.jsx
 import { useEffect } from "react";
 import { X, Pencil, Trash2 } from "lucide-react";
 
-export function EntityViewModal({ open, onClose, entity, onEdit, onDelete }) {
+export function BaseViewModal({
+  open,
+  onClose,
+  title,
+  subtitle,
+  fields = [],
+  item,
+  onEdit,
+  onDelete,
+}) {
   useEffect(() => {
     function onKey(e) {
       if (!open) return;
@@ -38,10 +47,9 @@ export function EntityViewModal({ open, onClose, entity, onEdit, onDelete }) {
           style={{ justifyContent: "space-between", alignItems: "start" }}
         >
           <div style={{ display: "grid", gap: 6 }}>
-            <div data-ui="title">{entity?.name || "Entity"}</div>
-            <div data-ui="subtitle">Category: {entity?.category || "None"}</div>
+            <div data-ui="title">{title}</div>
+            {subtitle && <div data-ui="subtitle">{subtitle}</div>}
           </div>
-
           <button type="button" data-ui="btn-refresh" onClick={onClose}>
             <X size={16} />
             <span>Close</span>
@@ -53,39 +61,43 @@ export function EntityViewModal({ open, onClose, entity, onEdit, onDelete }) {
         <div style={{ height: 12 }} />
 
         <div style={{ display: "grid", gap: 12 }}>
-          <div data-ui="item">
-            <div data-ui="label">Name</div>
-            <div data-ui="hint">{entity?.name || "—"}</div>
-          </div>
-
-          <div data-ui="item">
-            <div data-ui="label">Category</div>
-            <div data-ui="hint">{entity?.category || "—"}</div>
-          </div>
+          {fields.map((f) => (
+            <div key={f.key} data-ui="item">
+              <div data-ui="label">{f.label}</div>
+              <div data-ui="hint">
+                {f.render
+                  ? f.render(item?.[f.key], item)
+                  : (item?.[f.key] ?? "—")}
+              </div>
+            </div>
+          ))}
 
           <div
             data-ui="row"
             style={{ justifyContent: "flex-end", gap: 10, flexWrap: "wrap" }}
           >
-            <button
-              type="button"
-              data-ui="btn-refresh"
-              onClick={onEdit}
-              disabled={!entity?.id}
-            >
-              <Pencil size={16} />
-              <span>Edit</span>
-            </button>
-
-            <button
-              type="button"
-              data-ui="btn-refresh"
-              onClick={onDelete}
-              disabled={!entity?.id}
-            >
-              <Trash2 size={16} />
-              <span>Delete</span>
-            </button>
+            {onEdit && (
+              <button
+                type="button"
+                data-ui="btn-refresh"
+                onClick={onEdit}
+                disabled={!item?.id}
+              >
+                <Pencil size={16} />
+                <span>Edit</span>
+              </button>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                data-ui="btn-refresh"
+                onClick={onDelete}
+                disabled={!item?.id}
+              >
+                <Trash2 size={16} />
+                <span>Delete</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
