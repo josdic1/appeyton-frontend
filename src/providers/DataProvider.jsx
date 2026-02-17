@@ -1,4 +1,3 @@
-// src/providers/DataProvider.jsx
 import { useState, useContext, useCallback, useMemo } from "react";
 import { DataContext } from "../contexts/DataContext";
 import { AuthContext } from "../contexts/AuthContext";
@@ -10,18 +9,22 @@ export function DataProvider({ children }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // 🛡️ Sync/Refresh states for indicators
+  const [refreshing, setRefreshing] = useState(false);
+  const [syncType, setSyncType] = useState(null);
+
   // Sterling Catering data
   const [rooms, setRooms] = useState([]);
   const [tables, setTables] = useState([]);
   const [reservations, setReservations] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
 
-  // Fetch dining rooms
+  // Fetch dining rooms (Updated to /api/ops/)
   const fetchRooms = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const data = await retryRequest(() => api.get("/api/dining-rooms"));
+      const data = await retryRequest(() => api.get("/api/ops/dining-rooms"));
       setRooms(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err);
@@ -31,23 +34,20 @@ export function DataProvider({ children }) {
     }
   }, [user]);
 
-  // Fetch all tables
+  // Fetch all tables (Updated to /api/ops/)
   const fetchTables = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
-      // Fetch tables for each room and combine
-      const roomsData = await retryRequest(() => api.get("/api/dining-rooms"));
+      // Get rooms from ops list first
+      const roomsData = await retryRequest(() =>
+        api.get("/api/ops/dining-rooms"),
+      );
       const allTables = [];
 
-      for (const room of roomsData) {
-        const tablesData = await retryRequest(() =>
-          api.get(`/api/dining-rooms/${room.id}/tables`),
-        );
-        allTables.push(...(Array.isArray(tablesData) ? tablesData : []));
-      }
-
-      setTables(allTables);
+      // We use the master tables list in ops instead of looping room by room
+      const tablesData = await retryRequest(() => api.get("/api/ops/tables"));
+      setTables(Array.isArray(tablesData) ? tablesData : []);
     } catch (err) {
       setError(err);
       console.error("Failed to fetch tables:", err);
@@ -56,12 +56,12 @@ export function DataProvider({ children }) {
     }
   }, [user]);
 
-  // Fetch reservations
+  // Fetch reservations (Updated to /api/ops/)
   const fetchReservations = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const data = await retryRequest(() => api.get("/api/reservations"));
+      const data = await retryRequest(() => api.get("/api/ops/reservations"));
       setReservations(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err);
@@ -71,7 +71,7 @@ export function DataProvider({ children }) {
     }
   }, [user]);
 
-  // Fetch menu items
+  // Fetch menu items (Remains at /api/menu-items as it is public-read)
   const fetchMenuItems = useCallback(async () => {
     if (!user) return;
     setLoading(true);
@@ -134,17 +134,18 @@ export function DataProvider({ children }) {
     () => ({
       loading,
       error,
-      // Data
+      refreshing,
+      setRefreshing,
+      syncType,
+      setSyncType,
       rooms,
       tables,
       reservations,
       menuItems,
-      // Fetch methods
       fetchRooms,
       fetchTables,
       fetchReservations,
       fetchMenuItems,
-      // CRUD methods
       createReservation,
       updateReservation,
       deleteReservation,
@@ -152,6 +153,8 @@ export function DataProvider({ children }) {
     [
       loading,
       error,
+      refreshing,
+      syncType,
       rooms,
       tables,
       reservations,

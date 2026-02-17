@@ -1,4 +1,3 @@
-// src/components/shared/NavBar.jsx
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { useToastTrigger } from "../../hooks/useToast";
@@ -18,6 +17,9 @@ export function NavBar() {
     nav("/login", { replace: true });
   }
 
+  // 🛡️ Admin-only check helper
+  const isAdmin = user?.role === "admin";
+
   return (
     <div data-ui="navbar">
       <div data-ui="nav-left">
@@ -36,9 +38,21 @@ export function NavBar() {
             <Link to="/dining-rooms" data-ui="nav-link">
               Dining Rooms
             </Link>
-            <Link to="/users" data-ui="nav-link">
-              Users
-            </Link>
+
+            {/* 🛡️ Authorization Layer: Only rendered for Admins */}
+            {isAdmin && (
+              <>
+                <Link to="/users" data-ui="nav-link">
+                  Users
+                </Link>
+                <Link to="/calendar" data-ui="nav-link">
+                  Calendar
+                </Link>
+                <Link to="/permissions" data-ui="nav-link">
+                  Permissions
+                </Link>
+              </>
+            )}
           </>
         )}
       </div>
