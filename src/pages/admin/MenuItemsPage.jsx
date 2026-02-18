@@ -1,4 +1,3 @@
-// src/pages/admin/MenuItemsPage.jsx
 import { useEffect, useState, useRef } from "react";
 import { useBase } from "../../hooks/useBase";
 import { BaseTable } from "../../components/base/BaseTable";
@@ -74,17 +73,13 @@ export function MenuItemsPage() {
   );
   const { addToast } = useToastTrigger();
   const [editing, setEditing] = useState(null);
-
-  // 1. Create a Ref for the form section
   const formRef = useRef(null);
 
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
 
-  // 2. Scroll Helper
   const scrollToForm = () => {
-    // Wait a tick for state updates if needed, then scroll
     setTimeout(() => {
       formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 50);
@@ -122,13 +117,11 @@ export function MenuItemsPage() {
     }
   };
 
-  // Handler for the "Add New" button at top
   const handleAddNewClick = () => {
-    setEditing(null); // Clear editing state
-    scrollToForm(); // Scroll down
+    setEditing(null);
+    scrollToForm();
   };
 
-  // Handler for clicking "Edit" on a row
   const handleEditClick = (item) => {
     setEditing(item);
     scrollToForm();
@@ -136,7 +129,6 @@ export function MenuItemsPage() {
 
   return (
     <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "2rem" }}>
-      {/* Header Section */}
       <div
         style={{
           display: "flex",
@@ -155,7 +147,6 @@ export function MenuItemsPage() {
           <p data-ui="subtitle">Manage food and beverage options</p>
         </div>
 
-        {/* 3. The "Drive me down" Button */}
         <button
           data-ui="btn"
           onClick={handleAddNewClick}
@@ -166,18 +157,16 @@ export function MenuItemsPage() {
         </button>
       </div>
 
-      {/* Table Section */}
       <div style={{ marginBottom: "3rem" }}>
         <BaseTable
           columns={COLUMNS}
           data={items}
           loading={loading}
-          onEdit={handleEditClick} // Scrolls down when clicked
+          onEdit={handleEditClick}
           onDelete={handleDelete}
         />
       </div>
 
-      {/* Form Section (Target of Scroll) */}
       <div
         ref={formRef}
         data-ui="card"
@@ -194,7 +183,6 @@ export function MenuItemsPage() {
           onSubmit={editing ? handleUpdate : handleCreate}
           onCancel={() => {
             setEditing(null);
-            // Optionally scroll back up? Usually keeping focus here is fine.
           }}
           initialData={editing}
           submitLabel={editing ? "Save Changes" : "Create Item"}

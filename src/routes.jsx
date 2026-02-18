@@ -1,4 +1,3 @@
-// src/routes.jsx
 import { createBrowserRouter } from "react-router-dom";
 import { AppShell } from "./components/shared/AppShell";
 import { LoginPage } from "./pages/LoginPage";
@@ -26,37 +25,30 @@ export const routes = createBrowserRouter([
     element: <AppShell />,
     errorElement: <ErrorPage />,
     children: [
-      // Public Routes
       { path: "login", element: <LoginPage /> },
       { path: "signup", element: <SignupPage /> },
 
-      // Logged In Users (Members, Staff, Admin)
       {
         element: <ProtectedRoute />,
         children: [
           { index: true, element: <HomePage /> },
-
-          // Member / Customer Routes
           { path: "reservations", element: <ReservationsPage /> },
           { path: "reservations/new", element: <NewReservationPage /> },
-          { path: "members", element: <MembersPage /> }, // Manage family members
-
-          // Shared Utilities
-          { path: "ide", element: <IdePage /> },
-          { path: "data", element: <DataView /> },
+          { path: "members", element: <MembersPage /> },
           { path: "calendar", element: <CalendarPage /> },
 
-          // ADMIN / OPERATIONS ROUTES
-          // (Only Admins and Staff should reach here)
+          // PUBLICLY ACCESSIBLE DIGITAL MENU [cite: 2026-02-18]
+          { path: "menu-items", element: <MenuItemsPage /> },
+
+          { path: "ide", element: <IdePage /> },
+          { path: "data", element: <DataView /> },
+
+          // Admin & Operations Only
           {
             element: <AdminRoute />,
             children: [
-              // Operations
               { path: "admin/daily", element: <DailyPage /> },
               { path: "ops/floor-plan", element: <FloorPlanPage /> },
-
-              // Configuration (Updated with admin/ prefix)
-              { path: "admin/menu-items", element: <MenuItemsPage /> },
               { path: "admin/dining-rooms", element: <DiningRoomsPage /> },
               { path: "admin/users", element: <UsersPage /> },
               { path: "admin/permissions", element: <PermissionsPage /> },

@@ -1,129 +1,121 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
-import { useBase } from "../hooks/useBase"; // Import data fetcher
+import { useBase } from "../hooks/useBase";
 import { ReservationFormModal } from "../components/reservations/ReservationFormModal";
-import { Clock, MapPin, Users, ArrowRight } from "lucide-react"; // Icons for the cards
+import { ReservationDetailModal } from "../components/shared/ReservationSuite";
+import {
+  Clock,
+  Users,
+  ArrowRight,
+  Utensils,
+  LayoutDashboard,
+  MessageCircle,
+} from "lucide-react";
+import { api } from "../utils/api";
+import { useToastTrigger } from "../hooks/useToast";
 
 export function HomePage() {
   const { user } = useAuth();
   const [bookingOpen, setBookingOpen] = useState(false);
-
-  // 1. Fetch reservations on mount
+  const [editRes, setEditRes] = useState(null);
+  const [selectedRes, setSelectedRes] = useState(null);
   const { items: reservations, fetchAll } = useBase("reservations");
+  const { addToast } = useToastTrigger();
 
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
 
-  // 2. Filter & Sort: Active, Upcoming Reservations
+  const handleEditClick = (res) => {
+    setSelectedRes(null);
+    setEditRes(res);
+    setBookingOpen(true);
+  };
+
+  const handleCancelClick = async (id) => {
+    if (!confirm("Cancel this reservation?")) return;
+    try {
+      await api.patch(`/api/reservations/${id}`, { status: "cancelled" });
+      addToast({
+        type: "success",
+        title: "Cancelled",
+        message: "Visit removed.",
+      });
+      setSelectedRes(null);
+      fetchAll();
+    } catch (e) {
+      addToast({ type: "error", title: "Error", message: "Failed to cancel." });
+    }
+  };
+
   const now = new Date();
   const upcoming = reservations
     .filter(
-      (r) =>
-        r.status !== "cancelled" && new Date(r.date + "T" + "23:59:00") >= now,
+      (r) => r.status !== "cancelled" && new Date(r.date + "T23:59:00") >= now,
     )
     .sort((a, b) => new Date(a.date) - new Date(b.date))
-    .slice(0, 3); // Limit to top 3 for the homepage
+    .slice(0, 3);
 
-  // 3. Safe Name Logic
-  const firstName = user?.name ? user.name.split(" ")[0] : "";
+  const firstName = user?.name?.split(" ")[0] || "";
 
   return (
-    <div
-      data-ui="home"
-      style={{
-        width: "100%",
-        display: "grid",
-        justifyItems: "center",
-        gap: 20,
-      }}
-    >
-      {/* ── WELCOME SECTION ── */}
-      <section data-ui="card" style={{ width: "min(980px, 100%)" }}>
-        <div data-ui="title">Welcome{firstName ? `, ${firstName}` : ""}</div>
-        <div style={{ height: 10 }} />
-        <div data-ui="subtitle">Sterling Catering · Member Portal</div>
-
-        <div style={{ height: 14 }} />
-        <div data-ui="divider" />
-        <div style={{ height: 14 }} />
-
-        <div data-ui="row" style={{ gap: 10, flexWrap: "wrap" }}>
+    <div style={homeGridStyle}>
+      <section data-ui="card" style={heroCardStyle}>
+        <div style={{ fontSize: "2.2rem", fontWeight: 900 }}>
+          Welcome back, {firstName}
+        </div>
+        <div style={heroActionsStyle}>
           <button
-            type="button"
+            onClick={() => {
+              setEditRes(null);
+              setBookingOpen(true);
+            }}
             data-ui="btn"
-            onClick={() => setBookingOpen(true)}
             style={{ background: "var(--success)" }}
           >
-            + Make a Reservation
+            + Book Table
           </button>
-
-          <Link to="/reservations/new">
-            <button
-              type="button"
-              data-ui="btn"
-              style={{
-                background: "transparent",
-                border: "1px solid var(--border-2)",
-                color: "var(--text)",
-              }}
-            >
-              Reservation Form ↗
+          {/* CORRECTED LINK [cite: 2026-02-18] */}
+          <Link to="/menu-items">
+            <button data-ui="btn" style={secondaryBtnStyle}>
+              <Utensils size={18} /> Menu
             </button>
           </Link>
-
-          <Link to="/ops/floor-plan">
-            <button type="button" data-ui="btn-refresh">
-              <span>Floor Plan</span>
-            </button>
-          </Link>
-
-          <Link to="/dining-rooms">
-            <button type="button" data-ui="btn-refresh">
-              <span>Dining Rooms</span>
+          <Link to="/members">
+            <button data-ui="btn" style={secondaryBtnStyle}>
+              <Users size={18} /> My Family
             </button>
           </Link>
         </div>
+        {user?.role !== "member" && (
+          <div style={staffLinkContainerStyle}>
+            <Link to="/admin/daily" style={staffLinkStyle}>
+              <LayoutDashboard size={16} /> Daily Command Center →
+            </Link>
+          </div>
+        )}
       </section>
 
-      {/* ── UPCOMING RESERVATIONS CARDS ── */}
       {upcoming.length > 0 && (
-        <section style={{ width: "min(980px, 100%)" }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: 12,
-              padding: "0 4px",
-            }}
-          >
-            <div
-              data-ui="subtitle"
-              style={{ fontSize: "1.1rem", color: "var(--text)" }}
-            >
-              Your Upcoming Reservations
+        <section style={{ width: "min(800px, 100%)" }}>
+          <div style={sectionHeaderStyle}>
+            <div style={{ fontWeight: 800, fontSize: "1.2rem" }}>
+              Upcoming Visits
             </div>
-            <Link
-              to="/reservations"
-              style={{
-                fontSize: "0.9rem",
-                color: "var(--primary)",
-                textDecoration: "none",
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-                fontWeight: 600,
-              }}
-            >
+            <Link to="/reservations" style={viewAllLinkStyle}>
               View All <ArrowRight size={16} />
             </Link>
           </div>
-
           <div style={{ display: "grid", gap: 12 }}>
             {upcoming.map((res) => (
-              <HomeReservationCard key={res.id} res={res} />
+              <div
+                key={res.id}
+                onClick={() => setSelectedRes(res)}
+                style={{ cursor: "pointer" }}
+              >
+                <HomeReservationCard res={res} />
+              </div>
             ))}
           </div>
         </section>
@@ -131,95 +123,176 @@ export function HomePage() {
 
       <ReservationFormModal
         open={bookingOpen}
-        onClose={() => setBookingOpen(false)}
+        onClose={() => {
+          setBookingOpen(false);
+          setEditRes(null);
+          fetchAll();
+        }}
         user={user}
+        initialData={editRes}
       />
+
+      {selectedRes && (
+        <ReservationDetailModal
+          res={selectedRes}
+          onClose={() => setSelectedRes(null)}
+          onEdit={() => handleEditClick(selectedRes)}
+          onCancel={() => handleCancelClick(selectedRes.id)}
+        />
+      )}
     </div>
   );
 }
 
-// ── Inline Component for Homepage Cards ──
 function HomeReservationCard({ res }) {
-  const dateObj = new Date(res.date);
-  const dateStr = dateObj.toLocaleDateString("en-US", {
+  const dateStr = new Date(res.date).toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
     day: "numeric",
   });
+  const unreadCount = res.unread_message_count || 0;
 
   return (
     <div
       data-ui="card"
       style={{
-        padding: "16px",
-        borderLeft: "4px solid var(--primary)",
+        padding: "20px 24px",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
-        gap: 16,
         background: "var(--panel)",
+        borderLeft: `4px solid ${res.status === "confirmed" ? "var(--success)" : "var(--warning)"}`,
       }}
     >
       <div style={{ flex: 1 }}>
         <div
           style={{
             display: "flex",
-            alignItems: "center",
             gap: 10,
-            marginBottom: 6,
+            marginBottom: 8,
+            alignItems: "center",
           }}
         >
-          <div style={{ fontWeight: 800, fontSize: "1.1rem" }}>{dateStr}</div>
-          <div
-            style={{
-              padding: "2px 8px",
-              borderRadius: "4px",
-              background: "var(--panel-2)",
-              fontSize: "0.75rem",
-              fontWeight: 700,
-              textTransform: "uppercase",
-              border: "1px solid var(--border)",
-            }}
-          >
-            {res.meal_type}
-          </div>
+          <div style={{ fontWeight: 900, fontSize: "1.1rem" }}>{dateStr}</div>
+          <div style={badgeStyle}>{res.meal_type}</div>
+          {unreadCount > 0 && (
+            <div style={notificationBadgeStyle}>
+              <MessageCircle
+                size={10}
+                fill="white"
+                style={{ marginRight: 4 }}
+              />
+              {unreadCount}
+            </div>
+          )}
         </div>
-
         <div
           style={{
             display: "flex",
-            flexWrap: "wrap",
-            gap: 16,
+            gap: 15,
             color: "var(--muted)",
-            fontSize: "0.9rem",
+            fontSize: "0.85rem",
+            fontWeight: 500,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <Clock size={15} /> {res.start_time}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <MapPin size={15} /> Table {res.table?.table_number || "TBD"}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <Users size={15} /> {res.party_size || res.attendees?.length || "?"}{" "}
-            ppl
-          </div>
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <Clock size={14} /> {res.start_time}
+          </span>
+          <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <Users size={14} /> {res.attendees?.length || 0} Guests
+          </span>
         </div>
       </div>
-
-      <div>
-        <span
+      <div style={{ textAlign: "right" }}>
+        <div
           style={{
-            color:
-              res.status === "confirmed" ? "var(--success)" : "var(--warning)",
-            fontWeight: 700,
-            fontSize: "0.85rem",
-            textTransform: "capitalize",
+            fontWeight: 900,
+            color: "var(--orange)",
+            fontSize: "0.75rem",
+            textTransform: "uppercase",
           }}
         >
           {res.status}
-        </span>
+        </div>
       </div>
     </div>
   );
 }
+
+const homeGridStyle = {
+  width: "100%",
+  display: "grid",
+  justifyItems: "center",
+  gap: 32,
+  paddingBottom: 40,
+};
+const heroCardStyle = {
+  width: "min(800px, 100%)",
+  padding: "40px",
+  textAlign: "center",
+  background: "var(--panel)",
+  borderRadius: 24,
+  border: "1px solid var(--border)",
+};
+const heroActionsStyle = {
+  display: "flex",
+  gap: "14px",
+  justifyContent: "center",
+  marginTop: 24,
+  flexWrap: "wrap",
+};
+const secondaryBtnStyle = {
+  background: "var(--panel-2)",
+  border: "1px solid var(--border)",
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  padding: "12px 24px",
+};
+const staffLinkContainerStyle = {
+  marginTop: "32px",
+  paddingAt: "24px",
+  borderTop: "1px solid var(--border)",
+};
+const staffLinkStyle = {
+  color: "var(--muted)",
+  fontSize: "0.9rem",
+  textDecoration: "none",
+  fontWeight: 600,
+};
+const sectionHeaderStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-end",
+  marginBottom: 16,
+};
+const viewAllLinkStyle = {
+  fontSize: "0.9rem",
+  color: "var(--primary)",
+  textDecoration: "none",
+  display: "flex",
+  alignItems: "center",
+  gap: 4,
+  fontWeight: 700,
+};
+const badgeStyle = {
+  fontSize: "0.65rem",
+  fontWeight: 800,
+  textTransform: "uppercase",
+  padding: "3px 10px",
+  background: "var(--panel-2)",
+  borderRadius: 6,
+  border: "1px solid var(--border)",
+};
+const notificationBadgeStyle = {
+  background: "var(--primary)",
+  color: "white",
+  padding: "2px 8px",
+  borderRadius: "12px",
+  fontSize: "0.7rem",
+  fontWeight: 900,
+  display: "flex",
+  alignItems: "center",
+  boxShadow: "0 4px 10px rgba(var(--primary-rgb), 0.3)",
+  animation: "pulse 2s infinite",
+};
