@@ -1,4 +1,7 @@
 // src/providers/AuthProvider.jsx
+// FIX: Now uses HttpError.status directly — no more inferStatus() bridge.
+//      The bridge existed because apiRequest threw plain Error, losing status.
+//      With HttpError, we get the real status code every time.
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { AuthContext } from "../contexts/AuthContext";
 import { api } from "../utils/api";
@@ -6,7 +9,7 @@ import { api } from "../utils/api";
 function parseToken(token) {
   try {
     const payload = JSON.parse(atob(token.split(".")[1]));
-    if (payload.exp * 1000 < Date.now()) return null; // expired
+    if (payload.exp * 1000 < Date.now()) return null;
     return payload; // { user_id, role, exp }
   } catch {
     return null;
@@ -48,10 +51,8 @@ export function AuthProvider({ children }) {
       setUser(data.user);
       return { success: true };
     } catch (err) {
-      // apiRequest throws a plain Error but we need the status for login
-      // so we parse it back out of the message if it was a known HTTP error
-      const status = err.status ?? inferStatus(err.message);
-      return { success: false, error: err.message, status };
+      // HttpError now carries .status directly — no inference needed
+      return { success: false, error: err.message, status: err.status ?? null };
     }
   };
 
@@ -80,20 +81,4 @@ export function AuthProvider({ children }) {
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-// Infer status from error message when the status wasn't attached to the Error object.
-// apiRequest throws new Error(errorMsg) which loses the status code — this is a
-// temporary bridge until apiRequest is updated to throw a proper HttpError class.
-function inferStatus(message = "") {
-  if (!message) return null;
-  const m = message.toLowerCase();
-  if (
-    m.includes("account") &&
-    (m.includes("inactive") || m.includes("suspended"))
-  )
-    return 403;
-  if (m.includes("invalid credentials") || m.includes("unauthorized"))
-    return 401;
-  return null;
 }

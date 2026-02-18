@@ -1,9 +1,12 @@
 // src/pages/LoginPage.jsx
+// FIX #5: Demo credential autofill is now guarded by import.meta.env.DEV.
+// It only renders in local development. In any production or staging build
+// (where VITE_NODE_ENV !== development) the button is completely absent from the DOM.
 import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useToastTrigger } from "../hooks/useToast";
 import { useAuth } from "../hooks/useAuth";
-import { GlobeLock } from "lucide-react";
+import { GlobeLock, Aperture } from "lucide-react";
 
 export function LoginPage() {
   const nav = useNavigate();
@@ -33,8 +36,6 @@ export function LoginPage() {
       const result = await login({ email, password });
 
       if (!result.success) {
-        // 403 = account blocked — show the server message directly
-        // 401 = bad credentials
         addToast({
           type: "error",
           title: result.status === 403 ? "Access denied" : "Login failed",
@@ -48,7 +49,6 @@ export function LoginPage() {
         title: "Welcome back",
         message: "Logged in.",
       });
-
       const dest = location.state?.from || "/";
       nav(dest, { replace: true });
     } finally {
@@ -61,34 +61,60 @@ export function LoginPage() {
       <form data-ui="auth-form" onSubmit={onSubmit}>
         <div data-ui="auth-header">
           <div data-ui="row" style={{ justifyContent: "center", gap: 10 }}>
-            <button
-              type="button"
-              onClick={() => {
-                setEmail("josh@josh.com");
-                setPassword("1111");
-              }}
-              title="Auto-fill demo credentials"
-              style={{
-                background: "transparent",
-                border: "none",
-                padding: 0,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-              }}
-            >
-              <GlobeLock
-                size={22}
-                stroke="var(--text-main)"
-                strokeWidth={1.8}
-              />
-            </button>
-
+            {/* DEV ONLY: autofill button stripped from production builds */}
+            {import.meta.env.DEV && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail("josh@josh.com");
+                  setPassword("1111");
+                }}
+                title="Auto-fill dev credentials"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                <GlobeLock
+                  size={22}
+                  stroke="var(--text-main)"
+                  strokeWidth={1.8}
+                />
+              </button>
+            )}
+            {/* App name or logo could go here */}
+            {import.meta.env.DEV && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail("j@j.com");
+                  setPassword("1111");
+                }}
+                title="Auto-fill dev credentials"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                <Aperture
+                  size={22}
+                  stroke="var(--text-main)"
+                  strokeWidth={1.8}
+                />
+              </button>
+            )}
             <div data-ui="title" style={{ fontSize: 22 }}>
               Bagger
             </div>
           </div>
-
           <div data-ui="auth-subtitle">Authenticate session</div>
         </div>
 
@@ -109,7 +135,6 @@ export function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-
           <button data-ui="btn" type="submit" disabled={submitting}>
             {submitting ? "Signing in…" : "Authorize"}
           </button>

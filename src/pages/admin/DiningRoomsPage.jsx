@@ -4,6 +4,7 @@ import { useBase } from "../../hooks/useBase";
 import { BaseForm } from "../../components/base/BaseForm";
 import { useToastTrigger } from "../../hooks/useToast";
 import { api } from "../../utils/api";
+import { RefreshCw } from "lucide-react";
 
 const DINING_ROOM_FIELDS = [
   { name: "name", label: "Room Name", type: "text", required: true },
@@ -16,9 +17,22 @@ const DINING_ROOM_FIELDS = [
   },
 ];
 
+// UPDATED: Added X/Y fields so you can position tables for the floor plan
 const TABLE_FIELDS = [
   { name: "table_number", label: "Table #", type: "number", required: true },
   { name: "seat_count", label: "Seats", type: "number", required: true },
+  {
+    name: "position_x",
+    label: "X Position (px)",
+    type: "number",
+    defaultValue: 50,
+  },
+  {
+    name: "position_y",
+    label: "Y Position (px)",
+    type: "number",
+    defaultValue: 50,
+  },
 ];
 
 // ── Inline table list for a single room ──────────────────────────────
@@ -31,6 +45,7 @@ function RoomTables({ room, onTableChange }) {
   const loadTables = useCallback(async () => {
     try {
       const data = await api.get(`/api/admin/tables`);
+      // Filter client-side for simplicity, or add query param in backend
       setTables((data || []).filter((t) => t.dining_room_id === room.id));
     } catch {
       setTables([]);
@@ -51,7 +66,7 @@ function RoomTables({ room, onTableChange }) {
       });
       setAddingTable(false);
       loadTables();
-      onTableChange();
+      onTableChange(); // Refresh parent stats
     } catch (err) {
       addToast({ type: "error", title: "Error", message: err.message });
     }
@@ -70,6 +85,7 @@ function RoomTables({ room, onTableChange }) {
   };
 
   const handleDelete = async (tableId) => {
+    if (!confirm("Delete this table?")) return;
     try {
       await api.delete(`/api/admin/tables/${tableId}`);
       addToast({ type: "success", title: "Deleted", message: "Table removed" });
@@ -105,6 +121,7 @@ function RoomTables({ room, onTableChange }) {
                   justifyContent: "space-between",
                   padding: "0.6rem 1rem",
                   gap: "1rem",
+                  background: "var(--panel-2)",
                 }}
               >
                 {editingTable?.id === table.id ? (
@@ -129,9 +146,20 @@ function RoomTables({ room, onTableChange }) {
                       <span data-ui="label" style={{ fontWeight: 700 }}>
                         Table {table.table_number}
                       </span>
-                      <span data-ui="subtitle" style={{ fontSize: "0.85rem" }}>
-                        {table.seat_count} seats
-                      </span>
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        <span
+                          data-ui="subtitle"
+                          style={{ fontSize: "0.85rem" }}
+                        >
+                          {table.seat_count} seats
+                        </span>
+                        <span
+                          data-ui="subtitle"
+                          style={{ fontSize: "0.7rem", opacity: 0.7 }}
+                        >
+                          Pos: {table.position_x},{table.position_y}
+                        </span>
+                      </div>
                     </div>
                     <div style={{ display: "flex", gap: "0.5rem" }}>
                       <button
@@ -245,8 +273,9 @@ function RoomCard({ room, onEdit, onDelete, onTableChange }) {
                 {room.is_active ? "Active" : "Inactive"}
               </span>
             </div>
+            {/* Show rough capacity based on seed data, though real calc happens in backend usually */}
             <span data-ui="subtitle" style={{ fontSize: "0.82rem" }}>
-              {room.capacity ?? 0} seats total
+              Display Order: {room.display_order}
             </span>
           </div>
         </div>
@@ -327,6 +356,7 @@ export function DiningRoomsPage() {
   };
 
   const handleDelete = async (id) => {
+    if (!confirm("Delete this entire room and its tables?")) return;
     const result = await remove(id);
     if (result.success) {
       addToast({
@@ -342,14 +372,28 @@ export function DiningRoomsPage() {
 
   return (
     <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "2rem" }}>
-      <div style={{ marginBottom: "2rem" }}>
-        <h1
-          data-ui="title"
-          style={{ fontSize: "2rem", marginBottom: "0.5rem" }}
-        >
-          Dining Rooms
-        </h1>
-        <p data-ui="subtitle">Manage rooms and their tables</p>
+      <div
+        style={{
+          marginBottom: "2rem",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <div>
+          <h1
+            data-ui="title"
+            style={{ fontSize: "2rem", marginBottom: "0.5rem" }}
+          >
+            Dining Rooms
+          </h1>
+          <p data-ui="subtitle">
+            Manage rooms, tables, and floor plan coordinates
+          </p>
+        </div>
+        <button data-ui="btn-ghost" onClick={fetchAll} disabled={loading}>
+          <RefreshCw size={18} />
+        </button>
       </div>
 
       <div style={{ display: "grid", gap: "1rem", marginBottom: "2rem" }}>

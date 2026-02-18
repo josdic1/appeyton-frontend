@@ -1,0 +1,494 @@
+/* src/pages/ops/FloorPlan.css */
+/* Brand palette matches test-ui.html mockup exactly */
+:root {
+  --fp-orange: #eb5638;
+  --fp-orange-hover: #d94a2e;
+  --fp-black: #2b2b2b;
+  --fp-cream: #ebe5c0;
+  --fp-cream-dark: #e6e0b8;
+  --fp-gray-200: #d4cea3;
+  --fp-gray-300: #b8b38f;
+  --fp-gray-400: #9a9578;
+  --fp-gray-500: #7a7660;
+  --fp-gray-600: #5a574a;
+  --fp-gray-700: #3d3b33;
+  --fp-success: #5a8a5a;
+  --fp-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --fp-ease: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─── Root ────────────────────────────────────────────────── */
+.fp-root {
+  background: var(--fp-cream);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  color: var(--fp-black);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  overflow: hidden;
+}
+
+/* ─── Top Bar ─────────────────────────────────────────────── */
+.fp-topbar {
+  background: var(--fp-black);
+  padding: 1rem 1.5rem;
+  border-bottom: 3px solid var(--fp-orange);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.fp-topbar-center {
+  text-align: center;
+  flex: 1;
+}
+
+.fp-brand {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--fp-cream);
+  margin: 0 0 0.125rem 0;
+}
+
+.fp-brand-sub {
+  font-size: 0.75rem;
+  color: var(--fp-gray-400);
+  margin: 0;
+}
+
+.fp-topbar-right {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.fp-badge {
+  padding: 0.5rem 1rem;
+  background: var(--fp-gray-700);
+  color: var(--fp-cream);
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.fp-time-badge {
+  padding: 0.5rem 1rem;
+  background: var(--fp-orange);
+  color: var(--fp-cream);
+  border-radius: 0.375rem;
+  font-family: "Courier New", monospace;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+}
+
+.fp-search {
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  border: 2px solid var(--fp-gray-600);
+  background: var(--fp-gray-700);
+  color: var(--fp-cream);
+  font-size: 0.8125rem;
+  width: 200px;
+  outline: none;
+  transition: border-color var(--fp-ease);
+}
+
+.fp-search::placeholder {
+  color: var(--fp-gray-400);
+}
+
+.fp-search:focus {
+  border-color: var(--fp-orange);
+}
+
+/* ─── Error bar ───────────────────────────────────────────── */
+.fp-error-bar {
+  background: #b91c1c;
+  color: #fff;
+  padding: 0.5rem 1.5rem;
+  font-size: 0.8125rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.fp-error-bar button {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #fff;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8125rem;
+}
+
+/* ─── Main Layout ─────────────────────────────────────────── */
+.fp-main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 1.5rem;
+  padding: 1.5rem 1.5rem 0 1.5rem;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ─── Left Column ─────────────────────────────────────────── */
+.fp-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ─── Tables Grid ─────────────────────────────────────────── */
+.fp-tables-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+  padding: 1rem;
+  overflow-y: auto;
+  background: var(--fp-cream);
+  border: 2px solid var(--fp-black);
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  min-height: 0;
+}
+
+.fp-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--fp-gray-500);
+  padding: 3rem;
+  font-size: 0.9rem;
+}
+
+/* ─── Table Card ──────────────────────────────────────────── */
+.fp-table-view {
+  background: var(--fp-cream-dark);
+  border: 2px solid var(--fp-gray-300);
+  border-radius: 0.75rem;
+  padding: 2rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  min-height: 320px;
+  transition: all var(--fp-bounce) 200ms;
+  cursor: default;
+}
+
+.fp-table-view:hover {
+  border-color: var(--fp-orange);
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.fp-table-view--selected {
+  border-color: var(--fp-orange);
+  border-width: 3px;
+  box-shadow: 0 0 0 3px rgba(235, 86, 56, 0.15);
+}
+
+.fp-table-view--dimmed {
+  opacity: 0.15;
+  filter: blur(2px);
+  transform: scale(0.96);
+  pointer-events: none;
+}
+
+/* ─── Table Center Disc ───────────────────────────────────── */
+.fp-table-center {
+  width: 175px;
+  height: 175px;
+  border-radius: 50%;
+  background: var(--fp-black);
+  border: 4px solid var(--fp-orange);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--fp-cream);
+  cursor: pointer;
+  transition: transform var(--fp-ease);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.25);
+  position: relative;
+  user-select: none;
+}
+
+.fp-table-center:hover {
+  transform: scale(1.05);
+}
+
+.fp-table-center strong {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 0.375rem;
+}
+
+.fp-table-center span {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+.fp-res-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: var(--fp-orange);
+  color: var(--fp-cream);
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+}
+
+/* ─── Seat Bubbles ────────────────────────────────────────── */
+.fp-seat {
+  position: absolute;
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--fp-bounce) 180ms;
+  border: 3px solid var(--fp-black);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  user-select: none;
+  z-index: 5;
+}
+
+.fp-seat:hover {
+  transform: scale(1.2);
+  z-index: 20;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+.fp-seat--empty {
+  background: #fff;
+  color: var(--fp-gray-400);
+}
+
+.fp-seat--member {
+  background: var(--fp-success);
+  color: var(--fp-cream);
+}
+
+.fp-seat--guest {
+  background: var(--fp-orange);
+  color: var(--fp-cream);
+}
+
+.fp-seat--match {
+  border-color: #facc15;
+  box-shadow: 0 0 20px rgba(250, 204, 21, 0.6);
+  transform: scale(1.25);
+  z-index: 25;
+}
+
+.fp-seat--active {
+  border-color: var(--fp-orange);
+  box-shadow: 0 0 0 3px rgba(235, 86, 56, 0.35);
+}
+
+.fp-seat-initials {
+  font-size: 0.875rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.fp-seat-type {
+  font-size: 0.55rem;
+  margin-top: 2px;
+  opacity: 0.85;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.fp-seat-number {
+  font-size: 0.75rem;
+  opacity: 0.5;
+  font-weight: 600;
+}
+
+/* ─── Room Tabs ───────────────────────────────────────────── */
+.fp-room-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 0 0 0;
+  flex-shrink: 0;
+}
+
+.fp-room-tabs-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fp-gray-600);
+  margin-right: 0.5rem;
+  white-space: nowrap;
+  padding-bottom: 1rem;
+}
+
+.fp-room-tab {
+  padding: 0.875rem 1.25rem;
+  background: var(--fp-gray-300);
+  border: 2px solid var(--fp-gray-400);
+  border-bottom: none;
+  border-radius: 0.5rem 0.5rem 0 0;
+  cursor: pointer;
+  transition: all var(--fp-bounce) 200ms;
+  min-width: 130px;
+  text-align: left;
+}
+
+.fp-room-tab:hover {
+  transform: translateY(-4px);
+  border-color: var(--fp-orange);
+  background: var(--fp-cream-dark);
+}
+
+.fp-room-tab--active {
+  background: var(--fp-orange);
+  border-color: var(--fp-orange);
+  color: var(--fp-cream);
+  transform: translateY(-4px);
+}
+
+.fp-room-tab-name {
+  font-size: 0.875rem;
+  font-weight: 700;
+  margin-bottom: 0.2rem;
+}
+
+.fp-room-tab-info {
+  font-size: 0.6875rem;
+  opacity: 0.8;
+}
+
+/* ─── Context Panel ───────────────────────────────────────── */
+.fp-context-panel {
+  background: var(--fp-cream);
+  border: 2px solid var(--fp-black);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  overflow-y: auto;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  align-self: start;
+  max-height: calc(100vh - 200px);
+}
+
+.fp-context-header {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fp-gray-600);
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid var(--fp-gray-300);
+}
+
+.fp-context-empty {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  color: var(--fp-gray-500);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.fp-context-field {
+  margin-bottom: 1rem;
+}
+
+.fp-context-field label {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fp-gray-600);
+  margin-bottom: 0.3rem;
+}
+
+.fp-context-value {
+  font-size: 0.9375rem;
+  color: var(--fp-black);
+  font-weight: 500;
+  padding: 0.5rem 0.625rem;
+  background: var(--fp-cream-dark);
+  border-left: 3px solid var(--fp-orange);
+  border-radius: 0.25rem;
+}
+
+.fp-context-section {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--fp-gray-300);
+}
+
+.fp-context-section h3 {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fp-gray-600);
+  margin: 0 0 0.75rem 0;
+}
+
+.fp-attendee-card {
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  border-radius: 0.375rem;
+  border-left: 4px solid var(--fp-gray-400);
+  background: var(--fp-cream-dark);
+}
+
+.fp-attendee-card--member {
+  border-left-color: var(--fp-success);
+}
+
+.fp-attendee-card--guest {
+  border-left-color: var(--fp-orange);
+}
+
+.fp-attendee-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  margin-bottom: 0.2rem;
+  color: var(--fp-black);
+}
+
+.fp-attendee-meta {
+  font-size: 0.7rem;
+  color: var(--fp-gray-500);
+  text-transform: capitalize;
+}
+
+/* ─── Scrollbar ───────────────────────────────────────────── */
+.fp-tables-grid::-webkit-scrollbar,
+.fp-context-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.fp-tables-grid::-webkit-scrollbar-track,
+.fp-context-panel::-webkit-scrollbar-track {
+  background: var(--fp-gray-200);
+  border-radius: 3px;
+}
+
+.fp-tables-grid::-webkit-scrollbar-thumb,
+.fp-context-panel::-webkit-scrollbar-thumb {
+  background: var(--fp-gray-400);
+  border-radius: 3px;
+}

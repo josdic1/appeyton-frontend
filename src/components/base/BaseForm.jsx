@@ -1,4 +1,7 @@
-// src/components/BaseForm.jsx
+// src/components/base/BaseForm.jsx
+// Added: onFieldChange(fieldName, value, formData) callback — fires on every
+// field change. Lets parents react to specific field changes (e.g. reload
+// table options when dining_room_id changes) without breaking existing usage.
 import { useState, useEffect } from "react";
 
 export function BaseForm({
@@ -7,6 +10,7 @@ export function BaseForm({
   onCancel,
   initialData = null,
   submitLabel = "Save",
+  onFieldChange, // optional: (fieldName, value, currentFormData) => void
 }) {
   const [formData, setFormData] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -29,6 +33,10 @@ export function BaseForm({
     setFormData((prev) => ({ ...prev, [fieldName]: value }));
     if (errors[fieldName])
       setErrors((prev) => ({ ...prev, [fieldName]: null }));
+    // Call AFTER state is set, not inside the updater.
+    // Calling setState on a parent inside a child's setState updater
+    // violates React's render rules and throws a warning.
+    onFieldChange?.(fieldName, value, { ...formData, [fieldName]: value });
   };
 
   const validate = () => {
@@ -70,17 +78,19 @@ export function BaseForm({
     const commonProps = {
       value,
       onChange: (e) => handleChange(field.name, e.target.value),
-      disabled: submitting,
+      disabled: submitting || field.disabled,
       style: commonStyle,
     };
 
     switch (field.type) {
       case "textarea":
-        return <textarea {...commonProps} rows={4} />;
+        return <textarea {...commonProps} rows={field.rows ?? 4} />;
       case "select":
         return (
           <select {...commonProps}>
-            <option value="">Select {field.label}</option>
+            <option value="">
+              {field.placeholder ?? `Select ${field.label}`}
+            </option>
             {field.options?.map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
@@ -102,7 +112,7 @@ export function BaseForm({
               type="checkbox"
               checked={!!value}
               onChange={(e) => handleChange(field.name, e.target.checked)}
-              disabled={submitting}
+              disabled={submitting || field.disabled}
             />
             <span style={{ fontSize: "0.875rem" }}>{field.label}</span>
           </label>
@@ -129,6 +139,17 @@ export function BaseForm({
               </label>
             )}
             {renderField(field)}
+            {field.hint && !errors[field.name] && (
+              <div
+                style={{
+                  color: "var(--muted)",
+                  fontSize: "0.75rem",
+                  marginTop: "0.25rem",
+                }}
+              >
+                {field.hint}
+              </div>
+            )}
             {errors[field.name] && (
               <div
                 style={{

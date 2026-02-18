@@ -1,3 +1,4 @@
+// src/routes.jsx
 import { createBrowserRouter } from "react-router-dom";
 import { AppShell } from "./components/shared/AppShell";
 import { LoginPage } from "./pages/LoginPage";
@@ -11,10 +12,13 @@ import { DiningRoomsPage } from "./pages/admin/DiningRoomsPage";
 import { UsersPage } from "./pages/admin/UsersPage";
 import { PermissionsPage } from "./pages/PermissionsPage";
 import { ErrorPage } from "./pages/ErrorPage";
-
-// Guards
+import { FloorPlanPage } from "./pages/ops/FloorPlanPage";
+import { NewReservationPage } from "./pages/NewReservationPage";
+import { MembersPage } from "./pages/MembersPage";
 import { ProtectedRoute } from "./components/shared/ProtectedRoute";
 import { AdminRoute } from "./components/shared/AdminRoute";
+import { ReservationsPage } from "./pages/ReservationsPage";
+import { DailyPage } from "./pages/admin/DailyPage";
 
 export const routes = createBrowserRouter([
   {
@@ -22,25 +26,40 @@ export const routes = createBrowserRouter([
     element: <AppShell />,
     errorElement: <ErrorPage />,
     children: [
+      // Public Routes
       { path: "login", element: <LoginPage /> },
       { path: "signup", element: <SignupPage /> },
+
+      // Logged In Users (Members, Staff, Admin)
       {
-        // LEVEL 1: Must be logged in (Member, Staff, OR Admin)
         element: <ProtectedRoute />,
         children: [
           { index: true, element: <HomePage /> },
+
+          // Member / Customer Routes
+          { path: "reservations", element: <ReservationsPage /> },
+          { path: "reservations/new", element: <NewReservationPage /> },
+          { path: "members", element: <MembersPage /> }, // Manage family members
+
+          // Shared Utilities
           { path: "ide", element: <IdePage /> },
           { path: "data", element: <DataView /> },
           { path: "calendar", element: <CalendarPage /> },
-          { path: "menu-items", element: <MenuItemsPage /> },
-          { path: "dining-rooms", element: <DiningRoomsPage /> },
 
+          // ADMIN / OPERATIONS ROUTES
+          // (Only Admins and Staff should reach here)
           {
-            // LEVEL 2: Must be logged in AND have 'admin' role
             element: <AdminRoute />,
             children: [
-              { path: "users", element: <UsersPage /> },
-              { path: "permissions", element: <PermissionsPage /> },
+              // Operations
+              { path: "admin/daily", element: <DailyPage /> },
+              { path: "ops/floor-plan", element: <FloorPlanPage /> },
+
+              // Configuration (Updated with admin/ prefix)
+              { path: "admin/menu-items", element: <MenuItemsPage /> },
+              { path: "admin/dining-rooms", element: <DiningRoomsPage /> },
+              { path: "admin/users", element: <UsersPage /> },
+              { path: "admin/permissions", element: <PermissionsPage /> },
             ],
           },
         ],
