@@ -1,10 +1,18 @@
-// src/pages/admin/DiningRoomsPage.jsx
 import { useEffect, useState, useCallback } from "react";
 import { useBase } from "../../hooks/useBase";
 import { BaseForm } from "../../components/base/BaseForm";
 import { useToastTrigger } from "../../hooks/useToast";
 import { api } from "../../utils/api";
-import { RefreshCw } from "lucide-react";
+import { safe } from "../../utils/safe";
+import {
+  RefreshCw,
+  MapPin,
+  Grid,
+  Trash2,
+  Edit3,
+  ChevronRight,
+  ChevronDown,
+} from "lucide-react";
 
 const DINING_ROOM_FIELDS = [
   { name: "name", label: "Room Name", type: "text", required: true },
@@ -17,7 +25,6 @@ const DINING_ROOM_FIELDS = [
   },
 ];
 
-// UPDATED: Added X/Y fields so you can position tables for the floor plan
 const TABLE_FIELDS = [
   { name: "table_number", label: "Table #", type: "number", required: true },
   { name: "seat_count", label: "Seats", type: "number", required: true },
@@ -35,7 +42,7 @@ const TABLE_FIELDS = [
   },
 ];
 
-// ── Inline table list for a single room ──────────────────────────────
+// ── Table Management Logic ──────────────────────────────
 function RoomTables({ room, onTableChange }) {
   const [tables, setTables] = useState([]);
   const [editingTable, setEditingTable] = useState(null);
@@ -44,9 +51,12 @@ function RoomTables({ room, onTableChange }) {
 
   const loadTables = useCallback(async () => {
     try {
-      const data = await api.get(`/api/admin/tables`);
-      // Filter client-side for simplicity, or add query param in backend
-      setTables((data || []).filter((t) => t.dining_room_id === room.id));
+      // api.js handles /api prefix
+      const data = await api.get(`/ops/tables`);
+      const filtered = safe
+        .array(data)
+        .filter((t) => t.dining_room_id === room.id);
+      setTables(filtered);
     } catch {
       setTables([]);
     }
@@ -58,143 +68,116 @@ function RoomTables({ room, onTableChange }) {
 
   const handleCreate = async (data) => {
     try {
-      await api.post(`/api/admin/tables`, { ...data, dining_room_id: room.id });
+      await api.post(`/ops/tables`, { ...data, dining_room_id: room.id });
       addToast({
-        type: "success",
-        title: "Created",
-        message: `Table ${data.table_number} added`,
+        status: "success",
+        what: "Table Added",
+        why: `Table ${data.table_number} is now registered in ${room.name}.`,
+        how: "It will now appear on the live floor plan.",
       });
       setAddingTable(false);
       loadTables();
-      onTableChange(); // Refresh parent stats
+      onTableChange();
     } catch (err) {
-      addToast({ type: "error", title: "Error", message: err.message });
+      addToast({ status: "error", what: "Creation Failed", why: err.message });
     }
   };
 
   const handleUpdate = async (data) => {
     try {
-      await api.patch(`/api/admin/tables/${editingTable.id}`, data);
-      addToast({ type: "success", title: "Updated", message: "Table updated" });
+      await api.patch(`/ops/tables/${editingTable.id}`, data);
+      addToast({
+        status: "success",
+        what: "Table Updated",
+        why: "Coordinates and seating updated.",
+      });
       setEditingTable(null);
       loadTables();
       onTableChange();
     } catch (err) {
-      addToast({ type: "error", title: "Error", message: err.message });
+      addToast({ status: "error", what: "Update Failed", why: err.message });
     }
   };
 
   const handleDelete = async (tableId) => {
-    if (!confirm("Delete this table?")) return;
+    if (!confirm("Remove this table? This will affect the floor plan layout."))
+      return;
     try {
-      await api.delete(`/api/admin/tables/${tableId}`);
-      addToast({ type: "success", title: "Deleted", message: "Table removed" });
+      await api.delete(`/ops/tables/${tableId}`);
+      addToast({
+        status: "success",
+        what: "Table Removed",
+        why: "Table deleted from room inventory.",
+      });
       loadTables();
       onTableChange();
     } catch (err) {
-      addToast({ type: "error", title: "Error", message: err.message });
+      addToast({ status: "error", what: "Deletion Failed", why: err.message });
     }
   };
 
   return (
     <div style={{ marginTop: "1rem" }}>
-      {tables.length === 0 && !addingTable && (
-        <p
-          data-ui="subtitle"
-          style={{ fontSize: "0.85rem", marginBottom: "0.75rem" }}
-        >
-          No tables yet
-        </p>
-      )}
-
-      {tables.length > 0 && (
-        <div style={{ display: "grid", gap: "0.5rem", marginBottom: "1rem" }}>
-          {tables
-            .sort((a, b) => a.table_number - b.table_number)
-            .map((table) => (
-              <div
-                key={table.id}
-                data-ui="card"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "0.6rem 1rem",
-                  gap: "1rem",
-                  background: "var(--panel-2)",
-                }}
-              >
-                {editingTable?.id === table.id ? (
-                  <div style={{ flex: 1 }}>
-                    <BaseForm
-                      fields={TABLE_FIELDS}
-                      onSubmit={handleUpdate}
-                      onCancel={() => setEditingTable(null)}
-                      initialData={editingTable}
-                      submitLabel="Save"
-                    />
-                  </div>
-                ) : (
-                  <>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "1.5rem",
-                        alignItems: "center",
-                      }}
-                    >
-                      <span data-ui="label" style={{ fontWeight: 700 }}>
-                        Table {table.table_number}
-                      </span>
-                      <div style={{ display: "flex", flexDirection: "column" }}>
-                        <span
-                          data-ui="subtitle"
-                          style={{ fontSize: "0.85rem" }}
-                        >
-                          {table.seat_count} seats
-                        </span>
-                        <span
-                          data-ui="subtitle"
-                          style={{ fontSize: "0.7rem", opacity: 0.7 }}
-                        >
-                          Pos: {table.position_x},{table.position_y}
-                        </span>
+      <div style={{ display: "grid", gap: "10px", marginBottom: "1rem" }}>
+        {tables
+          .sort((a, b) => a.table_number - b.table_number)
+          .map((table) => (
+            <div key={table.id} data-ui="card" style={tableItemStyle}>
+              {editingTable?.id === table.id ? (
+                <div style={{ flex: 1, padding: "10px" }}>
+                  <BaseForm
+                    fields={TABLE_FIELDS}
+                    onSubmit={handleUpdate}
+                    onCancel={() => setEditingTable(null)}
+                    initialData={editingTable}
+                    submitLabel="Save Changes"
+                  />
+                </div>
+              ) : (
+                <>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "20px",
+                      alignItems: "center",
+                    }}
+                  >
+                    <div style={tableBadgeStyle}>{table.table_number}</div>
+                    <div>
+                      <div style={{ fontWeight: 800 }}>
+                        {table.seat_count} Seats
+                      </div>
+                      <div style={{ fontSize: "0.7rem", color: "#666" }}>
+                        Coords: {table.position_x}x, {table.position_y}y
                       </div>
                     </div>
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
-                      <button
-                        data-ui="btn-ghost"
-                        onClick={() => setEditingTable(table)}
-                        style={{
-                          fontSize: "0.8rem",
-                          padding: "0.25rem 0.75rem",
-                        }}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        data-ui="btn-danger"
-                        onClick={() => handleDelete(table.id)}
-                        style={{
-                          fontSize: "0.8rem",
-                          padding: "0.25rem 0.75rem",
-                        }}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
-        </div>
-      )}
+                  </div>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button
+                      onClick={() => setEditingTable(table)}
+                      style={smallBtnStyle}
+                    >
+                      <Edit3 size={14} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(table.id)}
+                      style={{ ...smallBtnStyle, color: "#ef4444" }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+      </div>
 
       {addingTable ? (
-        <div data-ui="card" style={{ padding: "1rem" }}>
-          <h4 data-ui="label" style={{ marginBottom: "0.75rem" }}>
-            New Table
-          </h4>
+        <div
+          data-ui="card"
+          style={{ padding: "20px", border: "1px dashed #000" }}
+        >
+          <h4 style={{ margin: "0 0 15px 0" }}>New Table for {room.name}</h4>
           <BaseForm
             fields={TABLE_FIELDS}
             onSubmit={handleCreate}
@@ -204,139 +187,43 @@ function RoomTables({ room, onTableChange }) {
         </div>
       ) : (
         <button
-          data-ui="btn-ghost"
+          data-ui="btn"
           onClick={() => setAddingTable(true)}
-          style={{ fontSize: "0.85rem" }}
+          style={addTableBtnStyle}
         >
-          + Add Table
+          + Add Table to Room
         </button>
       )}
     </div>
   );
 }
 
-// ── Room card ────────────────────────────────────────────────────────
-function RoomCard({ room, onEdit, onDelete, onTableChange }) {
-  const [expanded, setExpanded] = useState(false);
-
-  return (
-    <div data-ui="card" style={{ padding: "1.25rem" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "1rem",
-            flex: 1,
-          }}
-        >
-          <button
-            data-ui="btn-ghost"
-            onClick={() => setExpanded((v) => !v)}
-            style={{
-              fontSize: "1rem",
-              padding: "0.25rem 0.5rem",
-              minWidth: 32,
-            }}
-          >
-            {expanded ? "▾" : "▸"}
-          </button>
-          <div>
-            <div
-              style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}
-            >
-              <span
-                data-ui="label"
-                style={{ fontWeight: 700, fontSize: "1.05rem" }}
-              >
-                {room.name}
-              </span>
-              <span
-                style={{
-                  padding: "0.2rem 0.5rem",
-                  borderRadius: "0.25rem",
-                  fontSize: "0.7rem",
-                  fontWeight: 700,
-                  background: room.is_active
-                    ? "var(--success)"
-                    : "var(--danger)",
-                  color: "#fff",
-                  textTransform: "uppercase",
-                }}
-              >
-                {room.is_active ? "Active" : "Inactive"}
-              </span>
-            </div>
-            {/* Show rough capacity based on seed data, though real calc happens in backend usually */}
-            <span data-ui="subtitle" style={{ fontSize: "0.82rem" }}>
-              Display Order: {room.display_order}
-            </span>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <button
-            data-ui="btn-ghost"
-            onClick={() => onEdit(room)}
-            style={{ fontSize: "0.8rem", padding: "0.25rem 0.75rem" }}
-          >
-            Edit Room
-          </button>
-          <button
-            data-ui="btn-danger"
-            onClick={() => onDelete(room.id)}
-            style={{ fontSize: "0.8rem", padding: "0.25rem 0.75rem" }}
-          >
-            Delete
-          </button>
-        </div>
-      </div>
-
-      {expanded && (
-        <div
-          style={{
-            marginTop: "1rem",
-            paddingLeft: "2.5rem",
-            borderLeft: "2px solid var(--border)",
-          }}
-        >
-          <RoomTables room={room} onTableChange={onTableChange} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Main page ────────────────────────────────────────────────────────
+// ── Main Page Component ──────────────────────────────────────────
 export function DiningRoomsPage() {
-  const { items, loading, fetchAll } = useBase(
-    "dining-rooms?active_only=false",
-  );
+  const {
+    items: rawRooms,
+    loading,
+    fetchAll,
+  } = useBase("dining-rooms?active_only=false");
   const { create, update, remove } = useBase("admin/dining-rooms");
   const { addToast } = useToastTrigger();
   const [editingRoom, setEditingRoom] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
 
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+  const items = safe.array(rawRooms);
 
   const handleCreate = async (data) => {
     const result = await create(data);
     if (result.success) {
       addToast({
-        type: "success",
-        title: "Created",
-        message: "Dining room created",
+        status: "success",
+        what: "Room Created",
+        why: `${data.name} is now available for booking.`,
       });
       fetchAll();
-    } else {
-      addToast({ type: "error", title: "Error", message: result.error });
     }
   };
 
@@ -344,86 +231,201 @@ export function DiningRoomsPage() {
     const result = await update(editingRoom.id, data);
     if (result.success) {
       addToast({
-        type: "success",
-        title: "Updated",
-        message: "Dining room updated",
+        status: "success",
+        what: "Room Updated",
+        why: "Changes saved to the room configuration.",
       });
       setEditingRoom(null);
       fetchAll();
-    } else {
-      addToast({ type: "error", title: "Error", message: result.error });
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (!confirm("Delete this entire room and its tables?")) return;
-    const result = await remove(id);
-    if (result.success) {
-      addToast({
-        type: "success",
-        title: "Deleted",
-        message: "Dining room deleted",
-      });
-      fetchAll();
-    } else {
-      addToast({ type: "error", title: "Error", message: result.error });
     }
   };
 
   return (
-    <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "2rem" }}>
-      <div
-        style={{
-          marginBottom: "2rem",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
+    <div style={containerStyle}>
+      <header style={headerStyle}>
         <div>
-          <h1
-            data-ui="title"
-            style={{ fontSize: "2rem", marginBottom: "0.5rem" }}
-          >
-            Dining Rooms
-          </h1>
-          <p data-ui="subtitle">
-            Manage rooms, tables, and floor plan coordinates
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <Grid size={28} color="var(--orange)" />
+            <h1 style={{ margin: 0, fontSize: "2.2rem", fontWeight: 900 }}>
+              Dining Rooms
+            </h1>
+          </div>
+          <p style={{ margin: "4px 0 0", color: "#666", fontWeight: 600 }}>
+            Manage physical spaces and table coordinates
           </p>
         </div>
-        <button data-ui="btn-ghost" onClick={fetchAll} disabled={loading}>
-          <RefreshCw size={18} />
+        <button
+          data-ui="btn-refresh"
+          onClick={fetchAll}
+          disabled={loading}
+          style={refreshBtnStyle}
+        >
+          <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
         </button>
-      </div>
+      </header>
 
-      <div style={{ display: "grid", gap: "1rem", marginBottom: "2rem" }}>
-        {loading && <p data-ui="subtitle">Loading...</p>}
-        {!loading && items.length === 0 && (
-          <p data-ui="subtitle">No dining rooms yet. Add one below.</p>
-        )}
+      <div style={{ display: "grid", gap: "16px", marginBottom: "40px" }}>
         {items.map((room) => (
-          <RoomCard
-            key={room.id}
-            room={room}
-            onEdit={setEditingRoom}
-            onDelete={handleDelete}
-            onTableChange={fetchAll}
-          />
+          <div key={room.id} data-ui="card" style={roomCardStyle}>
+            <div style={roomHeaderStyle}>
+              <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
+                <button
+                  style={toggleBtnStyle}
+                  onClick={() =>
+                    setExpandedId(expandedId === room.id ? null : room.id)
+                  }
+                >
+                  {expandedId === room.id ? (
+                    <ChevronDown size={20} />
+                  ) : (
+                    <ChevronRight size={20} />
+                  )}
+                </button>
+                <div>
+                  <div style={{ fontWeight: 900, fontSize: "1.1rem" }}>
+                    {room.name}
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "#666" }}>
+                    Order: {room.display_order} •{" "}
+                    {room.is_active ? "ACTIVE" : "INACTIVE"}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={() => setEditingRoom(room)}
+                  style={actionBtnStyle}
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => {}}
+                  style={{ ...actionBtnStyle, color: "#ef4444" }}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+
+            {expandedId === room.id && (
+              <div style={expandedContentStyle}>
+                <RoomTables room={room} onTableChange={fetchAll} />
+              </div>
+            )}
+          </div>
         ))}
       </div>
 
-      <div data-ui="card" style={{ padding: "1.5rem" }}>
-        <h2 data-ui="label" style={{ marginBottom: "1rem" }}>
-          {editingRoom ? `Edit: ${editingRoom.name}` : "Add New Room"}
+      <div data-ui="card" style={editorCardStyle}>
+        <h2
+          style={{ margin: "0 0 20px 0", fontSize: "1.3rem", fontWeight: 900 }}
+        >
+          {editingRoom ? `Edit: ${editingRoom.name}` : "Create New Dining Room"}
         </h2>
         <BaseForm
           fields={DINING_ROOM_FIELDS}
           onSubmit={editingRoom ? handleUpdate : handleCreate}
           onCancel={editingRoom ? () => setEditingRoom(null) : null}
           initialData={editingRoom}
-          submitLabel={editingRoom ? "Update" : "Create Room"}
+          submitLabel={editingRoom ? "Save Changes" : "Create Room"}
         />
       </div>
     </div>
   );
 }
+
+// --- Styles ---
+
+const containerStyle = {
+  maxWidth: "1000px",
+  margin: "0 auto",
+  padding: "40px 20px",
+};
+const headerStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginBottom: "32px",
+};
+const refreshBtnStyle = {
+  padding: "10px",
+  borderRadius: "8px",
+  border: "1px solid #ddd",
+  background: "white",
+  cursor: "pointer",
+};
+const roomCardStyle = {
+  background: "white",
+  borderRadius: "12px",
+  border: "1px solid #eee",
+  overflow: "hidden",
+};
+const roomHeaderStyle = {
+  padding: "16px 20px",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  borderBottom: "1px solid #f5f5f5",
+};
+const toggleBtnStyle = {
+  background: "none",
+  border: "none",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+};
+const actionBtnStyle = {
+  background: "transparent",
+  border: "1px solid #ddd",
+  padding: "4px 12px",
+  borderRadius: "6px",
+  fontSize: "0.8rem",
+  fontWeight: 700,
+  cursor: "pointer",
+};
+const expandedContentStyle = {
+  padding: "0 20px 20px 50px",
+  borderLeft: "4px solid #f0f0f0",
+};
+const tableItemStyle = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  padding: "12px 16px",
+  background: "#f9f9f9",
+  borderRadius: "8px",
+};
+const tableBadgeStyle = {
+  width: 36,
+  height: 36,
+  background: "var(--black)",
+  color: "white",
+  borderRadius: "50%",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontWeight: 900,
+  fontSize: "0.9rem",
+};
+const smallBtnStyle = {
+  background: "none",
+  border: "none",
+  cursor: "pointer",
+  padding: "4px",
+};
+const addTableBtnStyle = {
+  marginTop: "12px",
+  background: "white",
+  border: "1px dashed #000",
+  padding: "8px 16px",
+  borderRadius: "8px",
+  fontWeight: 700,
+  cursor: "pointer",
+  width: "100%",
+};
+const editorCardStyle = {
+  padding: "32px",
+  background: "var(--cream)",
+  borderRadius: "16px",
+  border: "2px solid #000",
+};

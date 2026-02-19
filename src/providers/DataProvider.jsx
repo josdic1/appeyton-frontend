@@ -1,11 +1,8 @@
-// src/providers/DataProvider.jsx
-// FIX #7: fetchTables had two dead variables (allTables, roomsData) and was
-// fetching /api/ops/dining-rooms for no reason before hitting /api/ops/tables.
-// Removed both. Single clean fetch.
 import { useState, useContext, useCallback, useMemo } from "react";
 import { DataContext } from "../contexts/DataContext";
 import { AuthContext } from "../contexts/AuthContext";
 import { api, retryRequest } from "../utils/api";
+import { safe } from "../utils/safe";
 
 export function DataProvider({ children }) {
   const { user } = useContext(AuthContext);
@@ -20,80 +17,74 @@ export function DataProvider({ children }) {
   const [reservations, setReservations] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
 
-  const fetchRooms = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
-      const data = await retryRequest(() => api.get("/api/ops/dining-rooms"));
-      setRooms(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setError(err);
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
+  const performSync = useCallback(
+    async (type, fetchFn, setter) => {
+      if (!user) return;
+      setSyncType(type);
+      setRefreshing(true);
+      try {
+        const response = await retryRequest(fetchFn);
+        const payload = response?.data?.data || response?.data || response;
+        setter(safe.array(payload));
+        setError(null);
+      } catch (err) {
+        console.error(`Sync Error [${type}]:`, err);
+        setError(err);
+      } finally {
+        setRefreshing(false);
+        setSyncType(null);
+      }
+    },
+    [user],
+  );
 
-  const fetchTables = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
-      // FIXED: was fetching dining-rooms first (unused) then tables — now just tables
-      const data = await retryRequest(() => api.get("/api/ops/tables"));
-      setTables(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setError(err);
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
+  // FIXED: Removed /ops/ prefixes
+  const fetchRooms = useCallback(
+    () => performSync("rooms", () => api.get("/dining-rooms"), setRooms),
+    [performSync],
+  );
 
-  const fetchReservations = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
-      const data = await retryRequest(() => api.get("/api/ops/reservations"));
-      setReservations(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setError(err);
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
+  const fetchTables = useCallback(
+    () => performSync("tables", () => api.get("/tables"), setTables),
+    [performSync],
+  );
 
-  const fetchMenuItems = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
-      const data = await retryRequest(() => api.get("/api/menu-items"));
-      setMenuItems(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setError(err);
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
+  const fetchReservations = useCallback(
+    () =>
+      performSync(
+        "reservations",
+        () => api.get("/reservations"),
+        setReservations,
+      ),
+    [performSync],
+  );
+
+  const fetchMenuItems = useCallback(
+    () => performSync("menu", () => api.get("/menu-items"), setMenuItems),
+    [performSync],
+  );
 
   const createReservation = useCallback(async (reservationData) => {
     try {
-      const newReservation = await retryRequest(() =>
-        api.post("/api/reservations", reservationData),
+      const response = await retryRequest(() =>
+        api.post("/reservations", reservationData),
       );
-      setReservations((prev) => [...prev, newReservation]);
-      return { success: true, data: newReservation };
+      const newRes = response?.data?.data || response?.data || response;
+      setReservations((prev) => [...prev, newRes]);
+      return { success: true, data: newRes };
     } catch (err) {
       setError(err);
       return { success: false, error: err.message };
     }
   }, []);
 
-  const updateReservation = useCallback(async (reservationId, updates) => {
+  const updateReservation = useCallback(async (id, updates) => {
     try {
-      const updated = await retryRequest(() =>
-        api.patch(`/api/reservations/${reservationId}`, updates),
+      const response = await retryRequest(() =>
+        api.patch(`/reservations/${id}`, updates),
       );
-      setReservations((prev) =>
-        prev.map((r) => (r.id === reservationId ? updated : r)),
-      );
+      const updated = response?.data?.data || response?.data || response;
+      setReservations((prev) => prev.map((r) => (r.id === id ? updated : r)));
       return { success: true, data: updated };
     } catch (err) {
       setError(err);
@@ -101,12 +92,10 @@ export function DataProvider({ children }) {
     }
   }, []);
 
-  const deleteReservation = useCallback(async (reservationId) => {
+  const deleteReservation = useCallback(async (id) => {
     try {
-      await retryRequest(() =>
-        api.delete(`/api/reservations/${reservationId}`),
-      );
-      setReservations((prev) => prev.filter((r) => r.id !== reservationId));
+      await retryRequest(() => api.delete(`/reservations/${id}`));
+      setReservations((prev) => prev.filter((r) => r.id !== id));
       return { success: true };
     } catch (err) {
       setError(err);
@@ -119,9 +108,7 @@ export function DataProvider({ children }) {
       loading,
       error,
       refreshing,
-      setRefreshing,
       syncType,
-      setSyncType,
       rooms,
       tables,
       reservations,

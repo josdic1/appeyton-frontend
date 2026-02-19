@@ -1,181 +1,265 @@
-// src/pages/admin/UsersPage.jsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useBase } from "../../hooks/useBase";
 import { BaseTable } from "../../components/base/BaseTable";
 import { BaseForm } from "../../components/base/BaseForm";
 import { useToastTrigger } from "../../hooks/useToast";
+import { safe } from "../../utils/safe";
+import { Users, ShieldAlert, UserCheck, Shield } from "lucide-react";
 
-const FIELDS = [
+const BASE_FIELDS = [
   { name: "name", label: "Full Name", type: "text", required: true },
-  { name: "email", label: "Email", type: "email", required: true },
+  { name: "email", label: "Email Address", type: "email", required: true },
   { name: "password", label: "Password", type: "password", required: true },
   {
     name: "role",
-    label: "Role",
+    label: "Access Role",
     type: "select",
     required: true,
-    defaultValue: "member",
     options: [
       { value: "member", label: "Member" },
       { value: "staff", label: "Staff" },
-      { value: "admin", label: "Admin" },
+      { value: "admin", label: "Administrator" },
     ],
   },
   {
     name: "membership_status",
-    label: "Status",
+    label: "Account Status",
     type: "select",
     required: true,
-    defaultValue: "active",
     options: [
       { value: "active", label: "Active" },
       { value: "inactive", label: "Inactive" },
-      { value: "pending", label: "Pending" },
+      { value: "pending", label: "Pending Verification" },
     ],
   },
 ];
 
 const COLUMNS = [
-  { key: "name", label: "Name" },
-  { key: "email", label: "Email" },
+  {
+    key: "name",
+    label: "User",
+    style: { fontWeight: 900, color: "var(--black)" },
+  },
+  { key: "email", label: "Email", style: { fontSize: "0.85rem" } },
   {
     key: "role",
     label: "Role",
-    render: (v) => (
-      <span
-        style={{
-          padding: "0.25rem 0.5rem",
-          borderRadius: "0.25rem",
-          fontSize: "0.75rem",
-          fontWeight: 700,
-          background: v === "admin" ? "var(--danger)" : "var(--info)",
-          color: "#fff",
-          textTransform: "uppercase",
-        }}
-      >
-        {v}
-      </span>
-    ),
-  },
-  {
-    key: "membership_status",
-    label: "Status",
     render: (v) => {
-      const colors = {
-        active: "var(--success)",
-        inactive: "var(--danger)",
-        pending: "var(--warning)",
-      };
+      const isAdmin = v === "admin";
       return (
         <span
           style={{
-            padding: "0.25rem 0.5rem",
-            borderRadius: "0.25rem",
-            fontSize: "0.75rem",
-            fontWeight: 700,
-            background: colors[v] || "var(--border)",
-            color: "#fff",
-            textTransform: "capitalize",
+            ...badgeBase,
+            background: isAdmin ? "#ef4444" : "#3b82f6",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
           }}
         >
-          {v}
+          {isAdmin ? <Shield size={10} /> : <Users size={10} />}{" "}
+          {v.toUpperCase()}
         </span>
       );
     },
   },
   {
-    key: "created_at",
-    label: "Joined",
-    render: (v) => (v ? new Date(v).toLocaleDateString() : "N/A"),
+    key: "membership_status",
+    label: "Status",
+    render: (v) => {
+      const colorMap = {
+        active: "#10b981",
+        inactive: "#666",
+        pending: "#f59e0b",
+      };
+      return (
+        <span
+          style={{
+            color: colorMap[v] || "#666",
+            fontWeight: 800,
+            fontSize: "0.75rem",
+            textTransform: "uppercase",
+          }}
+        >
+          ● {v}
+        </span>
+      );
+    },
   },
 ];
 
 export function UsersPage() {
-  const { items, loading, fetchAll, create, update, remove } =
-    useBase("admin/users");
+  const {
+    items: rawItems,
+    loading,
+    fetchAll,
+    create,
+    update,
+    remove,
+  } = useBase("users");
   const { addToast } = useToastTrigger();
   const [editing, setEditing] = useState(null);
-  const [fields, setFields] = useState(FIELDS);
 
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
 
-  useEffect(() => {
-    setFields(
-      editing
-        ? FIELDS.map((f) =>
-            f.name === "password"
-              ? {
-                  ...f,
-                  required: false,
-                  label: "New Password (blank = keep current)",
-                }
-              : f,
-          )
-        : FIELDS,
-    );
+  const items = safe.array(rawItems);
+
+  // Dynamic fields: Don't require password when editing an existing user
+  const fields = useMemo(() => {
+    return BASE_FIELDS.map((f) => {
+      if (f.name === "password" && editing) {
+        return {
+          ...f,
+          required: false,
+          label: "New Password (Optional)",
+          hint: "Leave blank to keep current password.",
+        };
+      }
+      return f;
+    });
   }, [editing]);
 
   const handleCreate = async (data) => {
     const result = await create(data);
-    result.success
-      ? addToast({ type: "success", title: "Created", message: "User created" })
-      : addToast({ type: "error", title: "Error", message: result.error });
+    if (result.success) {
+      addToast({
+        status: "success",
+        what: "Account Created",
+        why: `The credentials for ${data.name} are now active.`,
+        how: "The user can now log in with the assigned role.",
+      });
+      fetchAll();
+    } else {
+      addToast({ status: "error", what: "Creation Failed", why: result.error });
+    }
   };
 
   const handleUpdate = async (data) => {
-    const updateData = { ...data };
-    if (!updateData.password) delete updateData.password;
-    const result = await update(editing.id, updateData);
+    // Scrub empty password so we don't overwrite with a blank string
+    const payload = { ...data };
+    if (!payload.password) delete payload.password;
+
+    const result = await update(editing.id, payload);
     if (result.success) {
-      addToast({ type: "success", title: "Updated", message: "User updated" });
+      addToast({
+        status: "success",
+        what: "User Updated",
+        why: `Profile for ${data.name} was successfully modified.`,
+        how: "Permissions or credentials have been synced system-wide.",
+      });
       setEditing(null);
-    } else addToast({ type: "error", title: "Error", message: result.error });
+      fetchAll();
+    }
   };
 
   const handleDelete = async (id) => {
+    if (
+      !confirm("Permanently delete this user account? This cannot be undone.")
+    )
+      return;
     const result = await remove(id);
-    result.success
-      ? addToast({ type: "success", title: "Deleted", message: "User deleted" })
-      : addToast({ type: "error", title: "Error", message: result.error });
+    if (result.success) {
+      addToast({
+        status: "success",
+        what: "User Deleted",
+        why: "The account has been purged from the system.",
+      });
+    }
   };
 
   return (
-    <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "2rem" }}>
-      <div style={{ marginBottom: "2rem" }}>
-        <h1
-          data-ui="title"
-          style={{ fontSize: "2rem", marginBottom: "0.5rem" }}
-        >
-          Users & Members
-        </h1>
-        <p data-ui="subtitle">Manage user accounts and membership status</p>
-      </div>
-      <div style={{ display: "grid", gap: "2rem" }}>
-        <BaseTable
-          columns={COLUMNS}
-          data={items}
-          loading={loading}
-          onEdit={(user) => {
-            const { password, ...u } = user;
-            setEditing(u);
-          }}
-          onDelete={handleDelete}
-        />
+    <div style={containerStyle}>
+      <header style={headerStyle}>
         <div>
-          <h2 data-ui="label" style={{ marginBottom: "1rem" }}>
-            {editing ? "Edit User" : "Add New User"}
-          </h2>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <UserCheck size={32} color="var(--orange)" />
+            <h1
+              style={{
+                margin: 0,
+                fontSize: "2.4rem",
+                fontWeight: 900,
+                letterSpacing: "-1.5px",
+              }}
+            >
+              Directory
+            </h1>
+          </div>
+          <p style={{ margin: "4px 0 0", color: "#666", fontWeight: 600 }}>
+            Manage authentication accounts and system roles
+          </p>
+        </div>
+      </header>
+
+      <div style={contentGridStyle}>
+        <section data-ui="card" style={tableCardStyle}>
+          <BaseTable
+            columns={COLUMNS}
+            data={items}
+            loading={loading}
+            onEdit={(u) => setEditing(u)}
+            onDelete={handleDelete}
+          />
+        </section>
+
+        <section data-ui="card" style={editorCardStyle}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              marginBottom: 20,
+            }}
+          >
+            <ShieldAlert size={20} color="var(--orange)" />
+            <h2 style={{ margin: 0, fontSize: "1.4rem", fontWeight: 900 }}>
+              {editing ? `Modify: ${editing.name}` : "Provision Account"}
+            </h2>
+          </div>
+
           <BaseForm
             fields={fields}
             onSubmit={editing ? handleUpdate : handleCreate}
             onCancel={editing ? () => setEditing(null) : null}
             initialData={editing}
-            submitLabel={editing ? "Update" : "Create"}
+            submitLabel={editing ? "Update Permissions" : "Create Account"}
           />
-        </div>
+        </section>
       </div>
     </div>
   );
 }
+
+// --- Styles ---
+
+const containerStyle = {
+  maxWidth: "1200px",
+  margin: "0 auto",
+  padding: "40px 20px",
+};
+const headerStyle = { marginBottom: "40px" };
+const contentGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "1fr 400px",
+  gap: "32px",
+  alignItems: "start",
+};
+const tableCardStyle = {
+  background: "white",
+  borderRadius: "16px",
+  border: "1px solid #eee",
+  overflow: "hidden",
+};
+const editorCardStyle = {
+  padding: "32px",
+  background: "var(--cream)",
+  borderRadius: "16px",
+  border: "2px solid #000",
+};
+const badgeBase = {
+  padding: "3px 8px",
+  borderRadius: "4px",
+  fontSize: "0.65rem",
+  fontWeight: 900,
+  color: "white",
+};

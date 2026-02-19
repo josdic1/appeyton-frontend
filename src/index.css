@@ -1,4 +1,110 @@
+/* src/index.css */
 :root {
+  /* High-Contrast Light Theme */
+  --bg: #f8f9fa;
+  --panel: #ffffff;
+  --panel-2: #fffdf5; /* Cream for headers */
+  --border: #000000; /* Solid Black Borders */
+  --border-dim: #e2e8f0;
+
+  --text: #000000; /* Pure Black Text */
+  --muted: #475569;
+  --muted-2: #64748b;
+
+  --primary: #000000; /* Black Buttons */
+  --accent: #f97316; /* Orange accents */
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 8px 8px 0px #000000; /* Brutalist Shadow */
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: "Inter", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- BaseTable High-Contrast Overrides --- */
+.table-container {
+  background: white;
+  border: 3px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  width: 100%;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+
+thead th {
+  background: var(--panel-2); /* Cream Header */
+  color: var(--text);
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  padding: 16px;
+  border-bottom: 3px solid var(--border);
+  text-align: left;
+}
+
+tbody td {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-dim);
+  color: var(--text);
+  font-size: 0.9rem;
+  background: white;
+}
+
+tbody tr:hover td {
+  background: #f1f5f9; /* Subtle grey hover */
+}
+
+/* BaseTable Action Buttons */
+[data-ui="table-edit-btn"] {
+  color: #2563eb;
+  font-weight: 800;
+  background: none;
+  border: none;
+  cursor: pointer;
+  margin-right: 12px;
+}
+
+[data-ui="table-delete-btn"] {
+  color: #ef4444;
+  font-weight: 800;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+/* --- Global UI Polish --- */
+[data-ui="card"] {
+  background: white;
+  border: 3px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 24px;
+  color: var(--text);
+}
+
+[data-ui="input"] {
+  background: white !important;
+  color: black !important;
+  border: 2px solid var(--border) !important;
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  font-weight: 500;
+}
+
+/* :root {
   --bg: #0f0f10;
   --panel: #141415;
   --panel-2: #101011;
@@ -330,4 +436,4 @@ select {
   [data-ui="main"] {
     padding: 40px;
   }
-}
+} */

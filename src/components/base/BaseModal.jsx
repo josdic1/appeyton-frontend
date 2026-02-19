@@ -1,10 +1,12 @@
 // src/components/base/BaseModal.jsx
-// Added: onFieldChange prop — passed through to BaseForm so parents can
-// react to field changes (e.g. reload table options when room changes).
 import { useEffect } from "react";
 import { X } from "lucide-react";
 import { BaseForm } from "./BaseForm";
 
+/**
+ * BaseModal: A standardized overlay for data entry and configuration.
+ * Features: Accessibility guards, Backdrop dismissal, and Reactive field bridging.
+ */
 export function BaseModal({
   open,
   onClose,
@@ -13,9 +15,10 @@ export function BaseModal({
   fields,
   initialData,
   onSubmit,
-  submitLabel = "Save",
-  onFieldChange,
+  submitLabel = "Save Changes",
+  onFieldChange, // Crucial for cascading dropdown logic
 }) {
+  // Accessibility: Handle Escape key
   useEffect(() => {
     function onKey(e) {
       if (e.key === "Escape" && open) onClose?.();
@@ -30,60 +33,95 @@ export function BaseModal({
     <div
       role="dialog"
       aria-modal="true"
+      aria-labelledby="modal-title"
       onMouseDown={(e) => {
+        // Only close if clicking the actual backdrop, not the card
         if (e.target === e.currentTarget) onClose?.();
       }}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 9999,
-        background: "rgba(0,0,0,0.55)",
-        backdropFilter: "blur(8px)",
-        display: "grid",
-        placeItems: "center",
-        padding: 16,
-      }}
+      style={overlayStyle}
     >
-      <div
-        data-ui="card"
-        style={{
-          width: "min(720px, 100%)",
-          maxHeight: "90vh",
-          overflowY: "auto",
-        }}
-      >
-        <div
-          data-ui="row"
-          style={{ justifyContent: "space-between", alignItems: "start" }}
-        >
-          <div style={{ display: "grid", gap: 6 }}>
-            <div data-ui="title">{title}</div>
+      <div data-ui="card" style={modalCardStyle}>
+        {/* Header Section */}
+        <div style={headerRowStyle}>
+          <div style={{ display: "grid", gap: 4 }}>
+            <h2 id="modal-title" data-ui="title" style={{ margin: 0 }}>
+              {title}
+            </h2>
             {subtitle && <div data-ui="subtitle">{subtitle}</div>}
           </div>
           <button
             type="button"
             data-ui="btn-refresh"
             onClick={onClose}
-            title="Close"
+            aria-label="Close Modal"
           >
             <X size={16} />
-            <span>Close</span>
+            <span>Dismiss</span>
           </button>
         </div>
 
-        <div style={{ height: 12 }} />
-        <div data-ui="divider" />
-        <div style={{ height: 12 }} />
+        <div style={dividerWrapperStyle}>
+          <div data-ui="divider" />
+        </div>
 
-        <BaseForm
-          fields={fields}
-          initialData={initialData}
-          onSubmit={onSubmit}
-          onCancel={onClose}
-          submitLabel={submitLabel}
-          onFieldChange={onFieldChange}
-        />
+        {/* Content Section: Delegated to BaseForm */}
+        <div style={formContentStyle}>
+          <BaseForm
+            fields={fields}
+            initialData={initialData}
+            onSubmit={onSubmit}
+            onCancel={onClose}
+            submitLabel={submitLabel}
+            onFieldChange={onFieldChange}
+          />
+        </div>
       </div>
     </div>
   );
 }
+
+// --- Styles (Standardized for Sterling Identity) ---
+
+const overlayStyle = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 9999,
+  background: "rgba(0, 0, 0, 0.65)", // Slightly darker for better focus
+  backdropFilter: "blur(10px)",
+  display: "grid",
+  placeItems: "center",
+  padding: "20px",
+};
+
+const modalCardStyle = {
+  width: "min(680px, 100%)",
+  maxHeight: "85vh",
+  overflowY: "auto",
+  display: "flex",
+  flexDirection: "column",
+  background: "var(--cream, #fffdf5)",
+  border: "2px solid #000",
+  boxShadow: "0 20px 50px rgba(0,0,0,0.3)",
+};
+
+const headerRowStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  padding: "24px 24px 16px 24px",
+};
+
+const dividerWrapperStyle = {
+  padding: "0 24px",
+  marginBottom: "16px",
+};
+
+const formContentStyle = {
+  padding: "0 24px 24px 24px",
+};
+
+const headerRow = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "start",
+};

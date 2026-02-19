@@ -1,37 +1,44 @@
 // src/utils/api.js
 
 export class HttpError extends Error {
-  constructor(message, status) {
+  constructor(message, status, data = null) {
     super(message);
     this.name = "HttpError";
     this.status = status;
+    this.data = data;
   }
 }
 
 const getBaseUrl = () => {
-  const url = import.meta.env.VITE_API_URL || "http://localhost:8080";
-  return url.endsWith("/") ? url.slice(0, -1) : url;
+  // If VITE_API_URL is "http://localhost:8000/api", keep it.
+  // If empty, we assume the Vite Proxy handles it.
+  return import.meta.env.VITE_API_URL || "";
+};
+
+/**
+ * FIXED: Minimal normalization.
+ * Only adds /api if the baseUrl is empty (Vite Proxy mode).
+ */
+const normalizePath = (path) => {
+  const baseUrl = getBaseUrl();
+  const p = path.startsWith("/") ? path : `/${path}`;
+
+  // If we have a full URL in Env, don't force another /api prefix
+  if (baseUrl) return p;
+
+  // If using Vite Proxy, ensure /api is there
+  return p.startsWith("/api") ? p : `/api${p}`;
 };
 
 export const apiRequest = async (path, options = {}) => {
   const baseUrl = getBaseUrl();
-
-  // ── THE AUTOMATIC PREFIX FIX ──
-  // If the path doesn't already start with /api, add it.
-  // This ensures /members becomes /api/members automatically.
-  const normalizedPath = path.startsWith("/api")
-    ? path.startsWith("/")
-      ? path
-      : `/${path}`
-    : `/api${path.startsWith("/") ? path : `/${path}`}`;
-
-  const url = `${baseUrl}${normalizedPath}`;
+  const url = `${baseUrl}${normalizePath(path)}`;
   const token = localStorage.getItem("token");
 
   const headers = {
     "Content-Type": "application/json",
-    ...(token && { Authorization: `Bearer ${token}` }),
-    ...options.headers,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers || {}),
   };
 
   try {
@@ -40,26 +47,35 @@ export const apiRequest = async (path, options = {}) => {
     if (response.status === 401) {
       localStorage.removeItem("token");
       if (window.location.pathname !== "/login")
-        window.location.href = "/login";
+        window.location.href = "/login?expired=true";
       throw new HttpError("Session expired", 401);
     }
 
-    if (response.status === 204) return null;
-    const data = await response.json().catch(() => null);
+    if (response.status === 204) return { data: null };
+
+    const contentType = response.headers.get("content-type") || "";
+    const payload = contentType.includes("application/json")
+      ? await response.json()
+      : await response.text();
 
     if (!response.ok) {
-      const errorMsg =
-        data?.detail || data?.message || `Error ${response.status}`;
-      throw new HttpError(errorMsg, response.status);
+      throw new HttpError(
+        payload?.detail || payload?.message || "API Error",
+        response.status,
+        payload,
+      );
     }
 
-    return data;
-  } catch (error) {
-    console.error(
-      `[API Error] ${options.method || "GET"} ${normalizedPath}:`,
-      error.message,
-    );
-    throw error;
+    /**
+     * CRITICAL CHANGE:
+     * We return { data: payload } to mimic Axios.
+     * This prevents 'res.data is undefined' in your components.
+     */
+    return { data: payload };
+  } catch (err) {
+    if (!(err instanceof HttpError))
+      throw new HttpError("Network connection failed", 503);
+    throw err;
   }
 };
 
@@ -75,10 +91,13 @@ export const retryRequest = async (fn, retries = 3) => {
   for (let i = 0; i < retries; i++) {
     try {
       return await fn();
-    } catch (err) {
-      const isRetryable = !(err instanceof HttpError) || err.status >= 500;
-      if (!isRetryable || i === retries - 1) throw err;
-      await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)));
+    } catch (error) {
+      if (!(error instanceof HttpError) || error.status >= 500) {
+        if (i === retries - 1) throw error;
+        await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+        continue;
+      }
+      throw error;
     }
   }
 };

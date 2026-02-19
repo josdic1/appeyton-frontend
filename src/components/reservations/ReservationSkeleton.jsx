@@ -1,86 +1,107 @@
 // src/components/base/BaseSkeleton.jsx
 import React from "react";
 
+/**
+ * ReservationSkeleton: Mimics the look of the ReservationCard.
+ * Use this in the ReservationsPage or HomePage during the loading state.
+ */
 export function ReservationSkeleton({ count = 3 }) {
-  // Create an array of 'count' items to render multiple skeletons
   const skeletons = Array.from({ length: count });
 
   return (
-    <div style={{ display: "grid", gap: "14px", width: "100%" }}>
+    <div style={containerStyle}>
       {skeletons.map((_, i) => (
-        <div
-          key={i}
-          data-ui="card"
-          style={{
-            padding: "16px",
-            animation: "pulse 1.5s infinite ease-in-out",
-          }}
-        >
-          {/* Top Row: Date/Time mimic */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginBottom: 12,
-            }}
-          >
-            <div
-              style={{
-                height: 20,
-                width: "40%",
-                background: "var(--border)",
-                borderRadius: 4,
-              }}
-            ></div>
-            <div
-              style={{
-                height: 20,
-                width: "20%",
-                background: "var(--border)",
-                borderRadius: 12,
-              }}
-            ></div>
+        <div key={i} data-ui="card" style={skeletonCardStyle}>
+          {/* Header Row: Mimics Date and Status Pill */}
+          <div style={headerRowStyle}>
+            <div style={titleBoxStyle} />
+            <div style={pillBoxStyle} />
           </div>
 
-          {/* Middle Row: Table/Details mimic */}
-          <div
-            style={{
-              height: 14,
-              width: "60%",
-              background: "var(--border-2)",
-              borderRadius: 4,
-              marginBottom: 8,
-            }}
-          ></div>
+          {/* Subtitle Row: Mimics Table/Meal type */}
+          <div style={subtitleBoxStyle} />
 
-          {/* Bottom Row: Guests mimic */}
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <div
-              style={{
-                height: 24,
-                width: 60,
-                background: "var(--border-2)",
-                borderRadius: 12,
-              }}
-            ></div>
-            <div
-              style={{
-                height: 24,
-                width: 60,
-                background: "var(--border-2)",
-                borderRadius: 12,
-              }}
-            ></div>
+          {/* Footer Row: Mimics Attendee Badges */}
+          <div style={footerRowStyle}>
+            <div style={badgeBoxStyle} />
+            <div style={badgeBoxStyle} />
+            <div style={{ ...badgeBoxStyle, width: 40 }} />
           </div>
         </div>
       ))}
+
+      {/* Internal Animation Definition */}
       <style>{`
-        @keyframes pulse {
-          0% { opacity: 0.6; }
-          50% { opacity: 0.3; }
-          100% { opacity: 0.6; }
+        @keyframes skeleton-pulse {
+          0% { background-color: var(--border-2, #eee); opacity: 1; }
+          50% { background-color: var(--border, #ddd); opacity: 0.5; }
+          100% { background-color: var(--border-2, #eee); opacity: 1; }
         }
       `}</style>
     </div>
   );
 }
+
+// --- Styles (Themed for Bagger/Sterling) ---
+
+const containerStyle = {
+  display: "grid",
+  gap: "14px",
+  width: "100%",
+  maxWidth: "980px",
+  margin: "0 auto",
+};
+
+const skeletonCardStyle = {
+  padding: "20px",
+  background: "white",
+  border: "1px solid var(--border, #eee)",
+  borderRadius: "12px",
+  boxSizing: "border-box",
+};
+
+const pulseAnimation = {
+  animation: "skeleton-pulse 1.8s infinite ease-in-out",
+};
+
+const headerRowStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginBottom: "16px",
+};
+
+const titleBoxStyle = {
+  height: "22px",
+  width: "35%",
+  borderRadius: "4px",
+  ...pulseAnimation,
+};
+
+const pillBoxStyle = {
+  height: "24px",
+  width: "80px",
+  borderRadius: "20px",
+  ...pulseAnimation,
+};
+
+const subtitleBoxStyle = {
+  height: "14px",
+  width: "55%",
+  borderRadius: "4px",
+  marginBottom: "18px",
+  ...pulseAnimation,
+};
+
+const footerRowStyle = {
+  display: "flex",
+  gap: "8px",
+  marginTop: "12px",
+};
+
+const badgeBoxStyle = {
+  height: "26px",
+  width: "65px",
+  borderRadius: "6px",
+  ...pulseAnimation,
+};

@@ -1,19 +1,12 @@
-// src/pages/MembersPage.jsx
-// Manage family members under the logged-in user's account.
-// Uses BasePage pattern: BaseTable + BaseModal + BaseForm.
-// Members are stored in /api/members and represent people
-// who can be added as attendees to reservations.
-//
-// Fields: name, relation (Spouse, Child, Parent, Sibling, Guest),
-//         dietary_restrictions (freetext note)
-
 import { useEffect, useState } from "react";
 import { useBase } from "../hooks/useBase";
 import { BaseTable } from "../components/base/BaseTable";
 import { BaseModal } from "../components/base/BaseModal";
 import { useToastTrigger } from "../hooks/useToast";
-import { RefreshCw, Plus, Users } from "lucide-react";
+import { safe } from "../utils/safe";
+import { RefreshCw, Plus, Users, HeartPulse } from "lucide-react";
 
+// --- Configuration ---
 const RELATION_OPTIONS = [
   { value: "self", label: "Self (you)" },
   { value: "spouse", label: "Spouse / Partner" },
@@ -21,7 +14,6 @@ const RELATION_OPTIONS = [
   { value: "parent", label: "Parent" },
   { value: "sibling", label: "Sibling" },
   { value: "guest", label: "Guest / Friend" },
-  { value: "other", label: "Other" },
 ];
 
 const DIETARY_OPTIONS = [
@@ -29,276 +21,257 @@ const DIETARY_OPTIONS = [
   { value: "Vegetarian", label: "Vegetarian" },
   { value: "Vegan", label: "Vegan" },
   { value: "Gluten-free", label: "Gluten-free" },
-  { value: "Halal", label: "Halal" },
-  { value: "Kosher", label: "Kosher" },
   { value: "Nut allergy", label: "Nut allergy" },
   { value: "Dairy-free", label: "Dairy-free" },
 ];
 
 const FORM_FIELDS = [
-  {
-    name: "name",
-    label: "Full Name",
-    type: "text",
-    required: true,
-  },
+  { name: "name", label: "Full Name", type: "text", required: true },
   {
     name: "relation",
     label: "Relation",
     type: "select",
-    required: false,
     options: RELATION_OPTIONS,
-    placeholder: "Select relation…",
   },
   {
     name: "dietary_note",
-    label: "Dietary Restrictions",
+    label: "Primary Dietary Restriction",
     type: "select",
-    required: false,
     options: DIETARY_OPTIONS,
-    hint: "Used to inform kitchen staff when they dine with you",
+    hint: "Visible to kitchen staff when this person dines.",
   },
 ];
 
 const COLUMNS = [
-  { key: "name", label: "Name" },
+  {
+    key: "name",
+    label: "Name",
+    render: (v) => <strong style={{ color: "#000" }}>{v}</strong>,
+  },
   {
     key: "relation",
     label: "Relation",
-    render: (v) => (
-      <span
-        style={{
-          padding: "0.2rem 0.5rem",
-          borderRadius: "0.25rem",
-          fontSize: "0.75rem",
-          fontWeight: 700,
-          background: "var(--panel)",
-          border: "1px solid var(--border)",
-          textTransform: "capitalize",
-          color: "var(--text)",
-        }}
-      >
-        {v || "—"}
-      </span>
-    ),
+    render: (v) => <span style={badgeStyle}>{v || "Guest"}</span>,
   },
   {
     key: "dietary_restrictions",
-    label: "Dietary",
+    label: "Dietary Alerts",
     render: (v) => {
-      const note = !v
-        ? "None"
-        : typeof v === "string"
-          ? v
-          : v.note || Object.values(v).join(", ");
+      const note = !v ? "None" : typeof v === "string" ? v : v.note || "None";
+      const isCritical = note !== "None";
       return (
-        <span
+        <div
           style={{
-            color: note === "None" ? "var(--muted)" : "var(--text)",
-            fontSize: "0.875rem",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            color: isCritical ? "#ef4444" : "#666",
           }}
         >
-          {note}
-        </span>
+          {isCritical && <HeartPulse size={14} />}
+          <span
+            style={{ fontSize: "0.875rem", fontWeight: isCritical ? 700 : 500 }}
+          >
+            {note}
+          </span>
+        </div>
       );
     },
   },
-  {
-    key: "created_at",
-    label: "Added",
-    render: (v) => (v ? new Date(v).toLocaleDateString() : "—"),
-  },
 ];
 
+// --- Main Component ---
 export function MembersPage() {
-  const { items, loading, refreshing, fetchAll, create, update, remove } =
-    useBase("members");
+  const {
+    items: rawItems,
+    loading,
+    refreshing,
+    fetchAll,
+    create,
+    update,
+    remove,
+  } = useBase("members");
   const { addToast } = useToastTrigger();
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState(null); // member object or null
+  const [editing, setEditing] = useState(null);
 
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
 
+  const items = safe.array(rawItems);
   const isBusy = loading || refreshing;
 
-  // Flatten dietary_restrictions.note → dietary_note for the form
-  const toFormData = (member) => ({
-    ...member,
-    dietary_note: member?.dietary_restrictions?.note || "",
-  });
-
-  // Pack dietary_note back into dietary_restrictions before saving
-  const fromFormData = (formData) => ({
-    name: formData.name,
-    relation: formData.relation || null,
-    dietary_restrictions: formData.dietary_note
-      ? { note: formData.dietary_note }
-      : null,
-  });
-
   const handleSave = async (formData) => {
-    const payload = fromFormData(formData);
-    if (editing) {
-      const result = await update(editing.id, payload);
-      result.success
-        ? addToast({
-            type: "success",
-            title: "Updated",
-            message: `${payload.name} updated`,
-          })
-        : addToast({ type: "error", title: "Error", message: result.error });
-    } else {
-      const result = await create(payload);
-      result.success
-        ? addToast({
-            type: "success",
-            title: "Added",
-            message: `${payload.name} added to your family`,
-          })
-        : addToast({ type: "error", title: "Error", message: result.error });
+    const payload = {
+      name: formData.name,
+      relation: formData.relation || "guest",
+      dietary_restrictions: formData.dietary_note
+        ? { note: formData.dietary_note }
+        : null,
+    };
+
+    const action = editing
+      ? () => update(editing.id, payload)
+      : () => create(payload);
+    const result = await action();
+
+    if (result.success) {
+      addToast({
+        status: "success",
+        what: editing ? "Updated" : "Added",
+        why: `${payload.name} synced.`,
+      });
+      setModalOpen(false);
+      setEditing(null);
     }
-    setModalOpen(false);
-    setEditing(null);
-  };
-
-  const handleEdit = (member) => {
-    setEditing(member);
-    setModalOpen(true);
-  };
-
-  const handleDelete = async (id) => {
-    const result = await remove(id);
-    result.success
-      ? addToast({
-          type: "success",
-          title: "Removed",
-          message: "Family member removed",
-        })
-      : addToast({ type: "error", title: "Error", message: result.error });
-  };
-
-  const openNew = () => {
-    setEditing(null);
-    setModalOpen(true);
   };
 
   return (
-    <div
-      data-ui="home"
-      style={{
-        width: "100%",
-        display: "grid",
-        justifyItems: "center",
-        gap: 14,
-      }}
-    >
-      {/* Header */}
-      <section data-ui="card" style={{ width: "min(980px, 100%)" }}>
-        <div
-          data-ui="row"
-          style={{ justifyContent: "space-between", flexWrap: "wrap" }}
-        >
-          <div style={{ display: "grid", gap: 6 }}>
-            <div data-ui="row" style={{ gap: 10 }}>
-              <Users size={20} style={{ color: "var(--primary)" }} />
-              <div data-ui="title">Family Members</div>
+    <div style={containerStyle}>
+      {/* Header Section */}
+      <section style={headerCardStyle}>
+        <div style={headerRowStyle}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Users size={28} color="#f97316" />
+              <h1
+                style={{
+                  margin: 0,
+                  fontSize: "2rem",
+                  fontWeight: 900,
+                  color: "#000",
+                }}
+              >
+                Family & Guests
+              </h1>
             </div>
-            <div data-ui="subtitle">
-              People you can add to your reservations as attendees
-            </div>
+            <p style={{ margin: "4px 0 0", color: "#444", fontWeight: 600 }}>
+              Manage frequent diners for faster bookings.
+            </p>
           </div>
-          <div data-ui="row" style={{ gap: 10 }}>
-            <div
-              data-ui="pill"
-              data-variant={
-                loading ? "info" : refreshing ? "warning" : "success"
-              }
+
+          <div style={{ display: "flex", gap: 12 }}>
+            <button
+              onClick={() => {
+                setEditing(null);
+                setModalOpen(true);
+              }}
+              style={addBtnStyle}
             >
-              {loading
-                ? "Loading…"
-                : refreshing
-                  ? "Syncing…"
-                  : `${items.length} member${items.length !== 1 ? "s" : ""}`}
-            </div>
-            <button data-ui="btn-refresh" onClick={fetchAll} disabled={isBusy}>
-              <RefreshCw size={16} data-spin={refreshing ? "true" : "false"} />
-              <span>Refresh</span>
+              <Plus size={18} /> Add Member
             </button>
-            <button data-ui="btn-refresh" onClick={openNew} disabled={isBusy}>
-              <Plus size={16} />
-              <span>Add Member</span>
+            <button
+              onClick={fetchAll}
+              disabled={isBusy}
+              style={refreshBtnStyle}
+            >
+              <RefreshCw
+                size={16}
+                className={refreshing ? "animate-spin" : ""}
+              />
             </button>
           </div>
         </div>
+      </section>
 
+      {/* Table Section */}
+      <section style={tableCardStyle}>
+        <BaseTable
+          columns={COLUMNS}
+          data={items}
+          loading={loading}
+          onEdit={(m) => {
+            setEditing(m);
+            setModalOpen(true);
+          }}
+          onDelete={(id) => confirm("Remove member?") && remove(id)}
+        />
         {items.length === 0 && !loading && (
-          <div style={{ marginTop: "1.5rem" }}>
-            <div data-ui="divider" />
-            <div
-              style={{
-                textAlign: "center",
-                padding: "2rem",
-                color: "var(--muted)",
-              }}
-            >
-              <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>👨‍👩‍👧‍👦</div>
-              <div style={{ fontWeight: 700, marginBottom: "0.25rem" }}>
-                No family members yet
-              </div>
-              <div style={{ fontSize: "0.875rem" }}>
-                Add your family members so you can quickly select them when
-                booking a reservation.
-              </div>
-              <button
-                data-ui="btn"
-                onClick={openNew}
-                style={{
-                  marginTop: "1rem",
-                  width: "auto",
-                  paddingLeft: "2rem",
-                  paddingRight: "2rem",
-                }}
-              >
-                + Add your first member
-              </button>
-            </div>
+          <div style={emptyStateStyle}>
+            <h3>No members found</h3>
+            <p>Click "Add Member" to get started.</p>
           </div>
         )}
       </section>
 
-      {/* Table */}
-      {items.length > 0 && (
-        <section data-ui="card" style={{ width: "min(980px, 100%)" }}>
-          <BaseTable
-            columns={COLUMNS}
-            data={items}
-            loading={loading}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-          />
-        </section>
-      )}
-
-      {/* Modal */}
       <BaseModal
         open={modalOpen}
         onClose={() => {
           setModalOpen(false);
           setEditing(null);
         }}
-        title={editing ? `Edit ${editing.name}` : "Add Family Member"}
-        subtitle={
-          editing
-            ? "Update this person's details"
-            : "Add someone to your household or guest list"
-        }
+        title={editing ? `Edit ${editing.name}` : "New Family Member"}
         fields={FORM_FIELDS}
-        initialData={editing ? toFormData(editing) : null}
+        initialData={
+          editing
+            ? {
+                ...editing,
+                dietary_note: editing.dietary_restrictions?.note || "",
+              }
+            : null
+        }
         onSubmit={handleSave}
-        submitLabel={editing ? "Save Changes" : "Add Member"}
       />
     </div>
   );
 }
+
+// --- Styles (Forcing Legibility) ---
+const containerStyle = {
+  maxWidth: 1000,
+  margin: "0 auto",
+  padding: "40px 20px",
+  display: "grid",
+  gap: 24,
+};
+const headerCardStyle = {
+  padding: "32px",
+  background: "#fffdf5", // Cream
+  border: "3px solid #000", // Thick black border
+  borderRadius: "12px",
+  boxShadow: "8px 8px 0px #000", // Brutalist Shadow
+};
+const tableCardStyle = {
+  background: "white",
+  border: "3px solid #000",
+  borderRadius: "12px",
+  overflow: "hidden",
+  boxShadow: "8px 8px 0px #000",
+};
+const headerRowStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  flexWrap: "wrap",
+  gap: 20,
+};
+const addBtnStyle = {
+  background: "#000",
+  color: "#fff",
+  border: "none",
+  padding: "12px 24px",
+  borderRadius: "8px",
+  fontWeight: 900,
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+};
+const refreshBtnStyle = {
+  background: "#fff",
+  border: "2px solid #000",
+  padding: "12px",
+  borderRadius: "8px",
+  cursor: "pointer",
+};
+const badgeStyle = {
+  padding: "4px 10px",
+  borderRadius: "4px",
+  fontSize: "0.75rem",
+  fontWeight: 800,
+  background: "#eee",
+  border: "1px solid #000",
+  color: "#000",
+};
+const emptyStateStyle = { textAlign: "center", padding: "40px", color: "#000" };

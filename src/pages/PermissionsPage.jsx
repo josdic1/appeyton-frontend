@@ -1,206 +1,109 @@
 import React, { useState, Fragment, useEffect } from "react";
 import { useData } from "../hooks/useData";
 import { useToastTrigger } from "../hooks/useToast";
+import { api } from "../utils/api";
+import {
+  ShieldAlert,
+  History,
+  Activity,
+  ShieldCheck,
+  Lock,
+} from "lucide-react";
 
-// --- Helper Components & Logic ---
+// --- Configuration ---
 
 const ENTITY_GROUPS = [
   {
     group: "Reservations",
     items: [
-      { name: "Reservation", desc: "Main bookings" },
-      { name: "ReservationAttendee", desc: "Party guest list" },
-      { name: "ReservationMessage", desc: "Staff/Member chat" },
+      { name: "Reservation", desc: "Main bookings and scheduling" },
+      { name: "ReservationAttendee", desc: "Guest lists and dietary data" },
+      { name: "ReservationMessage", desc: "Staff/Member internal chat" },
     ],
   },
   {
     group: "Operations",
     items: [
-      { name: "MenuItem", desc: "Food & Drinks" },
-      { name: "Order", desc: "Customer tickets" },
-      { name: "OrderItem", desc: "Specific ticket items" },
-      { name: "DiningRoom", desc: "Room configuration" },
-      { name: "Table", desc: "Table layout" },
+      { name: "MenuItem", desc: "Food and beverage inventory" },
+      { name: "Order", desc: "Point-of-sale tickets" },
+      { name: "DiningRoom", desc: "Physical room layouts" },
+      { name: "Table", desc: "Table and seat mapping" },
     ],
   },
   {
     group: "System",
     items: [
-      { name: "User", desc: "Auth accounts" },
-      { name: "Member", desc: "Member profiles" },
-      { name: "DailyStat", desc: "Analytics" },
-      { name: "AuditTrail", desc: "Logs" },
+      { name: "User", desc: "Authentication and credentials" },
+      { name: "Member", desc: "Member CRM profiles" },
+      { name: "AuditTrail", desc: "Security logs and history" },
     ],
   },
 ];
 
 const COLORS = {
-  all: { bg: "#064e3b", color: "#34d399", label: "Full" },
-  own: { bg: "#451a03", color: "#fbbf24", label: "Own" },
-  none: { bg: "#450a0a", color: "#f87171", label: "None" },
+  all: { bg: "#064e3b", color: "#34d399", label: "FULL" },
+  own: { bg: "#451a03", color: "#fbbf24", label: "OWN" },
+  none: { bg: "#450a0a", color: "#f87171", label: "NONE" },
 };
 
-/**
- * Audit Explorer Modal
- * Compares snapshots and shows a clean list of what actually changed.
- */
+// --- Sub-Components ---
+
 function AuditExplorer({ log, onClose }) {
   if (!log) return null;
 
-  const getAclDiff = (oldAcl, newAcl) => {
-    const diffs = [];
-    if (!oldAcl || !newAcl) return diffs;
+  const diffs = [];
+  const oldAcl = log.details?.old_snapshot || {};
+  const newAcl = log.details?.new_snapshot || {};
 
-    for (const role in newAcl) {
-      for (const entity in newAcl[role]) {
-        for (const action in newAcl[role][entity]) {
-          const oldVal = oldAcl?.[role]?.[entity]?.[action];
-          const newVal = newAcl[role][entity][action];
-          if (oldVal !== newVal) {
-            diffs.push({
-              role,
-              entity,
-              action,
-              oldVal: oldVal || "none",
-              newVal,
-            });
-          }
-        }
-      }
-    }
-    return diffs;
-  };
-
-  const diffs = getAclDiff(
-    log.details?.old_snapshot,
-    log.details?.new_snapshot,
-  );
+  // Simple diffing engine
+  Object.keys(newAcl).forEach((role) => {
+    Object.keys(newAcl[role]).forEach((entity) => {
+      Object.keys(newAcl[role][entity]).forEach((action) => {
+        const o = oldAcl?.[role]?.[entity]?.[action];
+        const n = newAcl[role][entity][action];
+        if (o !== n) diffs.push({ role, entity, action, o: o || "none", n });
+      });
+    });
+  });
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        width: "100vw",
-        height: "100vh",
-        background: "rgba(0,0,0,0.85)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 11000,
-      }}
-    >
-      <div
-        style={{
-          background: "#1e293b",
-          padding: "2rem",
-          borderRadius: "12px",
-          width: "90%",
-          maxWidth: "600px",
-          maxHeight: "80vh",
-          overflowY: "auto",
-          border: "1px solid #334155",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            marginBottom: "1.5rem",
-            alignItems: "center",
-          }}
-        >
-          <div>
-            <h2 style={{ color: "white", margin: 0, fontSize: "1.2rem" }}>
-              Change Explorer
-            </h2>
-            <p style={{ color: "#64748b", fontSize: "0.75rem", margin: 0 }}>
-              Log ID: {log.id}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "#64748b",
-              cursor: "pointer",
-              fontSize: "1.5rem",
-            }}
-          >
+    <div style={modalOverlayStyle} onClick={onClose}>
+      <div style={modalContentStyle} onClick={(e) => e.stopPropagation()}>
+        <div style={modalHeaderStyle}>
+          <h3 style={{ margin: 0 }}>Diff Explorer</h3>
+          <button onClick={onClose} style={closeBtnStyle}>
             &times;
           </button>
         </div>
-
-        {diffs.length === 0 ? (
-          <p style={{ color: "#64748b", textAlign: "center", padding: "2rem" }}>
-            No logical differences detected in this save.
-          </p>
-        ) : (
-          <div style={{ display: "grid", gap: "0.75rem" }}>
-            {diffs.map((d, i) => (
-              <div
-                key={i}
-                style={{
-                  background: "#0f172a",
-                  padding: "1rem",
-                  borderRadius: "6px",
-                  borderLeft: "4px solid #818cf8",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "0.7rem",
-                    color: "#818cf8",
-                    fontWeight: "bold",
-                    marginBottom: "6px",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {d.role} › {d.entity}
+        <div style={{ padding: "20px" }}>
+          {diffs.length > 0 ? (
+            diffs.map((d, i) => (
+              <div key={i} style={diffRowStyle}>
+                <div style={diffPathStyle}>
+                  {d.role} › {d.entity} › {d.action}
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "1rem",
-                    color: "white",
-                  }}
-                >
-                  <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>
-                    {d.action}:
-                  </span>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span
-                    style={{
-                      color: "#f87171",
-                      textDecoration: "line-through",
-                      fontSize: "0.8rem",
-                    }}
+                    style={{ color: "#f87171", textDecoration: "line-through" }}
                   >
-                    {d.oldVal}
+                    {d.o}
                   </span>
-                  <span style={{ color: "#64748b" }}>&rarr;</span>
-                  <span
-                    style={{
-                      color: "#34d399",
-                      fontWeight: "bold",
-                      fontSize: "0.8rem",
-                    }}
-                  >
-                    {d.newVal}
+                  <span style={{ color: "#34d399", fontWeight: 900 }}>
+                    {d.n}
                   </span>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+            ))
+          ) : (
+            <p style={{ opacity: 0.5 }}>No logical changes detected.</p>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-// --- Main Page Component ---
+// --- Main Component ---
 
 export function PermissionsPage() {
   const [acl, setAcl] = useState(null);
@@ -212,34 +115,25 @@ export function PermissionsPage() {
   const { setRefreshing, setSyncType } = useData();
   const { addToast } = useToastTrigger();
 
-  const fetchData = async () => {
-    const token = localStorage.getItem("token");
-    const headers = { Authorization: `Bearer ${token}` };
-
+  const syncSecurity = async () => {
     try {
       const [aclRes, logsRes] = await Promise.all([
-        fetch("http://localhost:8080/api/admin/permissions/matrix", {
-          headers,
-        }),
-        fetch("http://localhost:8080/api/admin/permissions/history", {
-          headers,
-        }),
+        api.get("/admin/permissions/matrix"),
+        api.get("/admin/permissions/history"),
       ]);
-
-      if (aclRes.ok) setAcl(await aclRes.json());
-      if (logsRes.ok) setLogs(await logsRes.json());
+      setAcl(aclRes);
+      setLogs(logsRes || []);
     } catch (err) {
-      console.error("Failed to sync with backend", err);
       addToast({
-        type: "error",
-        title: "Sync Error",
-        message: "Could not fetch security data.",
+        status: "error",
+        what: "Sync Failed",
+        why: "Security server unreachable.",
       });
     }
   };
 
   useEffect(() => {
-    fetchData();
+    syncSecurity();
   }, []);
 
   const cycle = (entity, action) => {
@@ -256,32 +150,20 @@ export function PermissionsPage() {
     setRefreshing(true);
 
     try {
-      const res = await fetch(
-        "http://localhost:8080/api/admin/permissions/matrix",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-          body: JSON.stringify(acl),
-        },
-      );
-
-      if (res.ok) {
-        await fetchData();
-        addToast({
-          type: "success",
-          title: "Matrix Updated",
-          message: "Permissions saved and audit log created.",
-        });
-      } else {
-        const errorData = await res.json();
-        throw new Error(errorData.detail || "Failed to save");
-      }
+      await api.post("/admin/permissions/matrix", acl);
+      await syncSecurity();
+      addToast({
+        status: "success",
+        what: "Matrix Deployed",
+        why: "System-wide permissions have been updated.",
+        how: "Users will see these changes on their next data refresh.",
+      });
     } catch (err) {
-      console.error(err);
-      addToast({ type: "error", title: "Update Failed", message: err.message });
+      addToast({
+        status: "error",
+        what: "Deployment Failed",
+        why: err.message,
+      });
     } finally {
       setSaving(false);
       setRefreshing(false);
@@ -289,80 +171,42 @@ export function PermissionsPage() {
     }
   };
 
-  if (!acl) {
+  if (!acl)
     return (
-      <div
-        style={{
-          padding: "2rem",
-          color: "white",
-          background: "#0f172a",
-          minHeight: "100vh",
-        }}
-      >
-        Loading security matrix...
+      <div style={loadingPageStyle}>
+        <Activity className="animate-spin" /> Fetching Security Matrix...
       </div>
     );
-  }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "#0f172a",
-        color: "#cbd5e1",
-        padding: "2rem",
-        fontFamily: "monospace",
-      }}
-    >
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          marginBottom: "2rem",
-          borderBottom: "1px solid #334155",
-          paddingBottom: "1rem",
-        }}
-      >
+    <div style={pageContainerStyle}>
+      <header style={headerStyle}>
         <div>
-          <h1 style={{ fontSize: "1.25rem", color: "white", margin: 0 }}>
-            LIVE ACL MANAGER
-          </h1>
-          <p style={{ fontSize: "0.7rem", color: "#64748b" }}>
-            Audit-enabled security dashboard
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <Lock size={24} color="#818cf8" />
+            <h1 style={{ margin: 0, fontSize: "1.4rem", fontWeight: 900 }}>
+              SECURITY KERNEL
+            </h1>
+          </div>
+          <p style={{ margin: 0, fontSize: "0.75rem", opacity: 0.5 }}>
+            Audit-enforced access control list
           </p>
         </div>
-        <button
-          onClick={saveLive}
-          disabled={saving}
-          style={{
-            background: saving ? "#334155" : "#818cf8",
-            color: "#0f172a",
-            padding: "0.5rem 1rem",
-            borderRadius: "4px",
-            fontWeight: "bold",
-            cursor: saving ? "not-allowed" : "pointer",
-            border: "none",
-            transition: "all 0.2s",
-          }}
-        >
-          {saving ? "SAVING..." : "SAVE TO BACKEND"}
+        <button onClick={saveLive} disabled={saving} style={saveBtnStyle}>
+          {saving ? "DEPLOYING..." : "DEPLOY CHANGES"}
         </button>
       </header>
 
       {/* Role Tabs */}
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "2rem" }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
         {["member", "staff", "admin"].map((role) => (
           <button
             key={role}
             onClick={() => setActiveRole(role)}
             style={{
-              padding: "0.6rem 1rem",
+              ...tabStyle,
               background: activeRole === role ? "#818cf8" : "transparent",
-              color: activeRole === role ? "#0f172a" : "#cbd5e1",
-              border: "1px solid #334155",
-              borderRadius: "4px",
-              cursor: "pointer",
-              fontWeight: "bold",
+              color: activeRole === role ? "#0f172a" : "#94a3b8",
             }}
           >
             {role.toUpperCase()}
@@ -370,56 +214,31 @@ export function PermissionsPage() {
         ))}
       </div>
 
-      {/* Matrix Table */}
-      <table
-        style={{
-          width: "100%",
-          borderCollapse: "collapse",
-          background: "#1e293b",
-          borderRadius: "8px",
-          overflow: "hidden",
-        }}
-      >
+      {/* Matrix */}
+      <table style={tableStyle}>
         <thead>
-          <tr
-            style={{
-              background: "#0f172a",
-              color: "#64748b",
-              fontSize: "0.65rem",
-            }}
-          >
-            <th style={{ padding: "1rem", textAlign: "left" }}>ENTITY</th>
-            <th style={{ padding: "1rem" }}>READ</th>
-            <th style={{ padding: "1rem" }}>WRITE</th>
-            <th style={{ padding: "1rem" }}>DELETE</th>
+          <tr style={tableHeaderStyle}>
+            <th style={{ textAlign: "left", padding: "12px 20px" }}>ENTITY</th>
+            <th>READ</th>
+            <th>WRITE</th>
+            <th>DELETE</th>
           </tr>
         </thead>
         <tbody>
           {ENTITY_GROUPS.map((group) => (
             <Fragment key={group.group}>
-              <tr style={{ background: "#161e2e" }}>
-                <td
-                  colSpan={4}
-                  style={{
-                    padding: "0.5rem 1rem",
-                    color: "#818cf8",
-                    fontSize: "0.6rem",
-                    fontWeight: "bold",
-                  }}
-                >
-                  {group.group.toUpperCase()}
+              <tr style={{ background: "rgba(255,255,255,0.03)" }}>
+                <td colSpan={4} style={groupLabelStyle}>
+                  {group.group}
                 </td>
               </tr>
               {group.items.map((item) => (
-                <tr
-                  key={item.name}
-                  style={{ borderBottom: "1px solid #334155" }}
-                >
-                  <td style={{ padding: "1rem" }}>
-                    <div style={{ color: "white", fontWeight: "bold" }}>
+                <tr key={item.name} style={rowStyle}>
+                  <td style={{ padding: "16px 20px" }}>
+                    <div style={{ fontWeight: 800, color: "white" }}>
                       {item.name}
                     </div>
-                    <div style={{ fontSize: "0.6rem", color: "#64748b" }}>
+                    <div style={{ fontSize: "0.65rem", opacity: 0.5 }}>
                       {item.desc}
                     </div>
                   </td>
@@ -430,15 +249,10 @@ export function PermissionsPage() {
                         <button
                           onClick={() => cycle(item.name, action)}
                           style={{
+                            ...cellBtnStyle,
                             background: COLORS[val].bg,
                             color: COLORS[val].color,
-                            border: `1px solid ${COLORS[val].color}44`,
-                            padding: "4px 10px",
-                            borderRadius: "4px",
-                            fontSize: "0.65rem",
-                            fontWeight: "bold",
-                            cursor: "pointer",
-                            width: "65px",
+                            borderColor: COLORS[val].color,
                           }}
                         >
                           {COLORS[val].label}
@@ -453,82 +267,191 @@ export function PermissionsPage() {
         </tbody>
       </table>
 
-      {/* Security Audit Section */}
-      <div style={{ marginTop: "3rem" }}>
-        <h3 style={{ color: "white", fontSize: "1rem", marginBottom: "1rem" }}>
-          RECENT SECURITY CHANGES
-        </h3>
+      {/* Audit Log */}
+      <section style={{ marginTop: 40 }}>
         <div
           style={{
-            background: "#1e293b",
-            padding: "1rem",
-            borderRadius: "8px",
-            border: "1px solid #334155",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            marginBottom: 16,
           }}
         >
-          {logs.length > 0 ? (
-            logs.map((log) => (
-              <div
-                key={log.id}
-                style={{
-                  borderBottom: "1px solid #334155",
-                  padding: "0.8rem 0",
-                  fontSize: "0.75rem",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <div>
-                  <span style={{ color: "#818cf8", fontWeight: "bold" }}>
-                    {new Date(log.created_at).toLocaleString()}
-                  </span>
-                  <span style={{ color: "#64748b" }}> — </span>
-                  <strong style={{ color: "white" }}>
-                    User #{log.user_id}
-                  </strong>
-                  <span style={{ color: "#94a3b8" }}> performed </span>
-                  <span style={{ color: "#fbbf24", fontWeight: "bold" }}>
-                    {log.action}
-                  </span>
+          <History size={18} />
+          <h3 style={{ margin: 0, fontSize: "0.9rem" }}>DEPLOYMENT HISTORY</h3>
+        </div>
+        <div style={logContainerStyle}>
+          {logs.map((log) => (
+            <div key={log.id} style={logRowStyle}>
+              <div style={{ display: "flex", gap: 15, alignItems: "center" }}>
+                <div style={logBadgeStyle}>ID {log.id}</div>
+                <div style={{ fontWeight: 700 }}>
+                  {new Date(log.created_at).toLocaleString()}
                 </div>
-                <div
-                  style={{ display: "flex", gap: "1rem", alignItems: "center" }}
-                >
-                  <button
-                    onClick={() => setSelectedLog(log)}
-                    style={{
-                      background: "transparent",
-                      border: "1px solid #334155",
-                      color: "#94a3b8",
-                      fontSize: "0.6rem",
-                      padding: "2px 8px",
-                      cursor: "pointer",
-                      borderRadius: "2px",
-                    }}
-                  >
-                    EXPLORE DIFF
-                  </button>
-                  <div style={{ color: "#64748b", fontSize: "0.65rem" }}>
-                    {log.ip_address || "unknown ip"}
-                  </div>
+                <div style={{ opacity: 0.5 }}>
+                  User #{log.user_id} performed {log.action}
                 </div>
               </div>
-            ))
-          ) : (
-            <div
-              style={{ color: "#64748b", textAlign: "center", padding: "1rem" }}
-            >
-              No activity recorded yet.
+              <button
+                onClick={() => setSelectedLog(log)}
+                style={exploreBtnStyle}
+              >
+                EXPLORE DIFF
+              </button>
             </div>
-          )}
+          ))}
         </div>
-      </div>
+      </section>
 
-      {/* --- Modals --- */}
       {selectedLog && (
         <AuditExplorer log={selectedLog} onClose={() => setSelectedLog(null)} />
       )}
     </div>
   );
 }
+
+// --- Styles ---
+
+const pageContainerStyle = {
+  minHeight: "100vh",
+  background: "#0f172a",
+  color: "#cbd5e1",
+  padding: "40px",
+  fontFamily: "'JetBrains Mono', monospace",
+};
+const headerStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  marginBottom: "32px",
+  alignItems: "center",
+};
+const saveBtnStyle = {
+  background: "#818cf8",
+  color: "#0f172a",
+  border: "none",
+  padding: "10px 20px",
+  borderRadius: "6px",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+const tabStyle = {
+  padding: "8px 16px",
+  border: "1px solid #334155",
+  borderRadius: "4px",
+  cursor: "pointer",
+  fontWeight: 900,
+  fontSize: "0.75rem",
+};
+const tableStyle = {
+  width: "100%",
+  borderCollapse: "collapse",
+  background: "#1e293b",
+  borderRadius: "8px",
+  overflow: "hidden",
+};
+const tableHeaderStyle = {
+  background: "#020617",
+  fontSize: "0.6rem",
+  color: "#64748b",
+  textTransform: "uppercase",
+};
+const groupLabelStyle = {
+  padding: "8px 20px",
+  fontSize: "0.65rem",
+  fontWeight: 900,
+  color: "#818cf8",
+  letterSpacing: "1px",
+};
+const rowStyle = { borderBottom: "1px solid #334155" };
+const cellBtnStyle = {
+  border: "1px solid",
+  padding: "4px 10px",
+  borderRadius: "4px",
+  fontSize: "0.6rem",
+  fontWeight: 900,
+  cursor: "pointer",
+  minWidth: "60px",
+};
+const logContainerStyle = {
+  background: "#1e293b",
+  borderRadius: "8px",
+  border: "1px solid #334155",
+};
+const logRowStyle = {
+  padding: "12px 20px",
+  borderBottom: "1px solid #334155",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  fontSize: "0.8rem",
+};
+const logBadgeStyle = {
+  background: "#334155",
+  padding: "2px 6px",
+  borderRadius: "4px",
+  fontSize: "0.65rem",
+};
+const exploreBtnStyle = {
+  background: "transparent",
+  border: "1px solid #334155",
+  color: "#818cf8",
+  padding: "4px 8px",
+  borderRadius: "4px",
+  fontSize: "0.6rem",
+  fontWeight: 900,
+  cursor: "pointer",
+};
+const loadingPageStyle = {
+  height: "100vh",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "#0f172a",
+  color: "white",
+  gap: 15,
+};
+
+const modalOverlayStyle = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(0,0,0,0.85)",
+  zIndex: 11000,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+const modalContentStyle = {
+  background: "#1e293b",
+  borderRadius: "12px",
+  width: "500px",
+  border: "1px solid #334155",
+  color: "white",
+};
+const modalHeaderStyle = {
+  padding: "15px 20px",
+  borderBottom: "1px solid #334155",
+  display: "flex",
+  justifyContent: "space-between",
+};
+const closeBtnStyle = {
+  background: "none",
+  border: "none",
+  color: "white",
+  fontSize: "1.5rem",
+  cursor: "pointer",
+};
+const diffRowStyle = {
+  background: "#0f172a",
+  padding: "12px",
+  borderRadius: "6px",
+  marginBottom: "8px",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+};
+const diffPathStyle = {
+  fontSize: "0.7rem",
+  color: "#818cf8",
+  fontWeight: 900,
+  textTransform: "uppercase",
+};

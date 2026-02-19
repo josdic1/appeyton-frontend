@@ -1,70 +1,98 @@
 import { useState, useEffect } from "react";
-import { X, ChefHat, MessageSquare, Send, Lock, ArrowLeft } from "lucide-react";
+import {
+  X,
+  ChefHat,
+  MessageSquare,
+  Send,
+  Lock,
+  ArrowLeft,
+  ShieldAlert,
+} from "lucide-react";
 import { api } from "../../utils/api";
 import { useAuth } from "../../hooks/useAuth";
-import { OrderManager } from "../orders/OrderManager"; // Standard path
+import { OrderManager } from "../orders/OrderManager";
+import { safe } from "../../utils/safe";
 
-// ── SUB-COMPONENT: RESERVATION CHAT ──
+/**
+ * SUB-COMPONENT: RESERVATION CHAT
+ * Standardizes messaging between members and staff.
+ */
 export function ReservationChat({ res }) {
   const { user } = useAuth();
   const [msg, setMsg] = useState("");
   const [history, setHistory] = useState([]);
   const [isInternal, setIsInternal] = useState(false);
-  const isStaff = user.role !== "member";
+  const isStaff = user?.role === "staff" || user?.role === "admin";
 
-  const loadHistory = () =>
-    api.get(`/api/reservation-messages/${res.id}`).then(setHistory);
+  const loadHistory = async () => {
+    if (!res?.id) return;
+    try {
+      const response = await api.get(`/reservation-messages/${res.id}`);
+      // Handle standard API wrapper if present
+      const data = response.data?.data || response.data;
+      setHistory(safe.array(data));
+    } catch (err) {
+      console.error("Chat sync failed:", err);
+    }
+  };
+
   useEffect(() => {
     loadHistory();
-  }, [res.id]);
+    const poll = setInterval(loadHistory, 10000);
+    return () => clearInterval(poll);
+  }, [res?.id]);
 
   const send = async () => {
     if (!msg.trim()) return;
-    await api.post(`/api/reservation-messages/${res.id}`, {
-      message: msg,
-      is_internal: isInternal,
-    });
-    setMsg("");
-    setIsInternal(false);
-    loadHistory();
+    try {
+      await api.post(`/reservation-messages/${res.id}`, {
+        message: msg,
+        is_internal: isInternal,
+      });
+      setMsg("");
+      setIsInternal(false);
+      loadHistory();
+    } catch (err) {
+      console.error("Message send failed");
+    }
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "400px" }}>
-      <div style={{ flex: 1, overflowY: "auto" }}>
-        {history.map((m) => (
-          <div
-            key={m.id}
-            style={{
-              textAlign: m.sender_user_id === user.id ? "right" : "left",
-              marginBottom: 12,
-            }}
-          >
-            <div style={chatNameStyle}>
-              {m.sender_user_id === user.id ? "You" : m.sender?.name || "Staff"}{" "}
-              {m.is_internal && "🔒"}
-            </div>
+    <div style={chatWrapperStyle}>
+      <div style={messageListStyle}>
+        {history.map((m) => {
+          const isOwn = m.sender_user_id === user?.id;
+          return (
             <div
-              style={{
-                ...chatBubbleStyle,
-                background: m.is_internal
-                  ? "rgba(255,165,0,0.1)"
-                  : m.sender_user_id === user.id
-                    ? "var(--primary)"
-                    : "var(--panel-2)",
-                border: m.is_internal ? "1px solid var(--orange)" : "none",
-                color:
-                  m.sender_user_id === user.id && !m.is_internal
-                    ? "white"
-                    : "var(--text)",
-              }}
+              key={m.id}
+              style={{ textAlign: isOwn ? "right" : "left", marginBottom: 16 }}
             >
-              {m.message}
+              <div style={chatNameStyle}>
+                {isOwn ? "You" : m.sender?.name || "Staff"}
+                {m.is_internal && <Lock size={10} style={{ marginLeft: 4 }} />}
+              </div>
+              <div
+                style={{
+                  ...chatBubbleStyle,
+                  background: m.is_internal
+                    ? "rgba(235, 86, 56, 0.1)"
+                    : isOwn
+                      ? "#000"
+                      : "#f5f5f5",
+                  border: m.is_internal
+                    ? "1px dashed #eb5638"
+                    : "1px solid transparent",
+                  color: isOwn && !m.is_internal ? "white" : "#000",
+                }}
+              >
+                {m.message}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
-      <div style={{ borderTop: "1px solid var(--border)", paddingTop: 12 }}>
+
+      <div style={inputAreaStyle}>
         {isStaff && (
           <label style={internalToggleStyle}>
             <input
@@ -72,22 +100,20 @@ export function ReservationChat({ res }) {
               checked={isInternal}
               onChange={(e) => setIsInternal(e.target.checked)}
             />
-            <Lock size={12} /> Staff Only Note
+            <ShieldAlert size={12} /> Internal Note
           </label>
         )}
         <div style={{ display: "flex", gap: 8 }}>
           <input
-            data-ui="input"
-            placeholder="Message staff..."
+            style={inputFieldStyle}
+            placeholder={
+              isInternal ? "Add staff note..." : "Message concierge..."
+            }
             value={msg}
             onChange={(e) => setMsg(e.target.value)}
-            onKeyPress={(e) => e.key === "Enter" && send()}
+            onKeyDown={(e) => e.key === "Enter" && send()}
           />
-          <button
-            onClick={send}
-            data-ui="btn"
-            style={{ background: "var(--primary)", color: "white" }}
-          >
+          <button onClick={send} style={sendBtnStyle}>
             <Send size={16} />
           </button>
         </div>
@@ -96,16 +122,17 @@ export function ReservationChat({ res }) {
   );
 }
 
-// ── MAIN EXPORT: DETAIL MODAL ──
+/**
+ * MAIN EXPORT: RESERVATION DETAIL MODAL
+ * A multi-view suite for guest management and communication.
+ */
 export function ReservationDetailModal({ res, onClose, onEdit, onCancel }) {
   const [view, setView] = useState("details");
-
   if (!res) return null;
 
+  const attendees = safe.array(res.attendees);
   const primaryName =
-    res.attendees?.find((a) => a.attendee_type === "self")?.name ||
-    res.attendees?.[0]?.name ||
-    "Guest";
+    attendees.find((a) => a.is_primary)?.name || attendees[0]?.name || "Member";
 
   return (
     <div
@@ -114,98 +141,90 @@ export function ReservationDetailModal({ res, onClose, onEdit, onCancel }) {
     >
       <div style={modalContentStyle}>
         <div style={modalHeaderStyle}>
-          <div style={{ fontWeight: 800 }}>
+          <div
+            style={{
+              fontWeight: 900,
+              fontSize: "1.1rem",
+              textTransform: "uppercase",
+            }}
+          >
             {view === "details"
-              ? "Visit Management"
+              ? "Overview"
               : view === "order"
-                ? "Menu Selection"
-                : "Messages"}
+                ? "Menu"
+                : "Chat"}
           </div>
-          <button onClick={onClose} style={closeBtn}>
+          <button onClick={onClose} style={closeBtnStyle}>
             <X size={20} />
           </button>
         </div>
 
-        <div style={{ padding: 24, minHeight: "450px" }}>
+        <div style={{ padding: 32, minHeight: "500px" }}>
           {view === "details" && (
-            <>
-              <div style={gridStyle}>
-                <div>
-                  <div style={lblStyle}>Primary</div>
+            <div style={{ animation: "fadeIn 0.2s ease" }}>
+              <div style={summaryGridStyle}>
+                <div style={summaryItemStyle}>
+                  <div style={lblStyle}>Member</div>
                   <div style={valStyle}>{primaryName}</div>
                 </div>
-                <div>
+                <div style={summaryItemStyle}>
                   <div style={lblStyle}>Table</div>
                   <div style={valStyle}>{res.table?.table_number || "TBD"}</div>
                 </div>
-                <div>
+                <div style={summaryItemStyle}>
                   <div style={lblStyle}>Status</div>
-                  <div style={{ ...valStyle, color: "var(--success)" }}>
+                  <div style={{ ...valStyle, color: "#eb5638" }}>
                     {res.status?.toUpperCase()}
                   </div>
                 </div>
               </div>
 
-              <div style={{ marginBottom: 24 }}>
-                <div style={manifestHeader}>
-                  <div style={lblStyle}>Guest Manifest</div>
+              <div style={{ marginBottom: 32 }}>
+                <div style={manifestHeaderStyle}>
+                  <div style={lblStyle}>
+                    Party Manifest ({attendees.length})
+                  </div>
                   <button onClick={onEdit} style={textBtnStyle}>
-                    + Edit Party
+                    + Edit Guests
                   </button>
                 </div>
                 <div style={guestListStyle}>
-                  {res.attendees?.map((att, i) => (
-                    <div key={i} style={guestRowStyle}>
-                      {att.name}{" "}
-                      <small style={{ opacity: 0.5 }}>
-                        ({att.attendee_type})
-                      </small>
+                  {attendees.map((att, i) => (
+                    <div key={att.id || i} style={guestRowStyle}>
+                      <span style={{ fontWeight: 700 }}>{att.name}</span>
+                      <span style={typeBadgeStyle}>{att.attendee_type}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div style={actionRow}>
-                <button
-                  onClick={() => setView("order")}
-                  data-ui="btn"
-                  style={foodBtn}
-                >
-                  <ChefHat size={16} /> Food
+              <div style={actionRowStyle}>
+                <button onClick={() => setView("order")} style={foodBtnStyle}>
+                  <ChefHat size={18} /> Order Food
                 </button>
-                <button
-                  onClick={() => setView("chat")}
-                  data-ui="btn"
-                  style={chatBtn}
-                >
-                  <MessageSquare size={16} /> Chat
+                <button onClick={() => setView("chat")} style={chatBtnStyle}>
+                  <MessageSquare size={18} /> Chat
                 </button>
-                <button onClick={onCancel} data-ui="btn-danger">
-                  Cancel
+                <button onClick={onCancel} style={cancelBtnStyle}>
+                  Cancel Visit
                 </button>
               </div>
-            </>
+            </div>
           )}
 
           {view === "order" && (
-            <div style={{ height: "100%" }}>
-              <button
-                onClick={() => setView("details")}
-                style={{ ...textBtnStyle, marginBottom: 15 }}
-              >
-                <ArrowLeft size={14} /> Back to Details
+            <div style={viewTransitionStyle}>
+              <button onClick={() => setView("details")} style={backBtnStyle}>
+                <ArrowLeft size={16} /> Back
               </button>
               <OrderManager reservation={res} />
             </div>
           )}
 
           {view === "chat" && (
-            <div>
-              <button
-                onClick={() => setView("details")}
-                style={{ ...textBtnStyle, marginBottom: 15 }}
-              >
-                <ArrowLeft size={14} /> Back to Details
+            <div style={viewTransitionStyle}>
+              <button onClick={() => setView("details")} style={backBtnStyle}>
+                <ArrowLeft size={16} /> Back
               </button>
               <ReservationChat res={res} />
             </div>
@@ -216,114 +235,161 @@ export function ReservationDetailModal({ res, onClose, onEdit, onCancel }) {
   );
 }
 
-// ── STYLES ──
+// --- Styles (Standardized for Sterling Identity) ---
 const modalOverlayStyle = {
   position: "fixed",
   inset: 0,
   zIndex: 6000,
-  background: "rgba(0,0,0,0.85)",
-  backdropFilter: "blur(5px)",
+  background: "rgba(0,0,0,0.8)",
+  backdropFilter: "blur(4px)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
 };
 const modalContentStyle = {
-  background: "var(--panel)",
-  width: "min(950px, 95%)",
-  borderRadius: 20,
-  border: "1px solid var(--border)",
+  background: "#fff",
+  width: "min(800px, 95%)",
+  borderRadius: 0,
+  border: "4px solid #000",
   overflow: "hidden",
+  boxShadow: "20px 20px 0px rgba(0,0,0,0.2)",
 };
 const modalHeaderStyle = {
-  padding: "20px 24px",
-  borderBottom: "1px solid var(--border)",
+  padding: "20px 32px",
+  borderBottom: "2px solid #000",
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  background: "var(--panel-2)",
+};
+const chatWrapperStyle = {
+  display: "flex",
+  flexDirection: "column",
+  height: "400px",
+};
+const messageListStyle = { flex: 1, overflowY: "auto", padding: "10px" };
+const inputAreaStyle = { borderTop: "2px solid #000", paddingTop: 16 };
+const inputFieldStyle = {
+  flex: 1,
+  padding: "12px",
+  border: "2px solid #000",
+  fontWeight: 700,
 };
 const chatNameStyle = {
-  fontSize: "0.65rem",
-  color: "var(--muted)",
-  fontWeight: 800,
-  marginBottom: 2,
+  fontSize: "0.6rem",
+  fontWeight: 900,
+  textTransform: "uppercase",
+  marginBottom: 4,
 };
 const chatBubbleStyle = {
-  padding: "8px 14px",
-  borderRadius: 12,
+  padding: "10px 16px",
+  borderRadius: "4px",
   display: "inline-block",
   maxWidth: "85%",
+  fontSize: "0.9rem",
+  fontWeight: 600,
 };
 const internalToggleStyle = {
   display: "flex",
   alignItems: "center",
-  gap: 6,
+  gap: 8,
   fontSize: "0.7rem",
-  marginBottom: 8,
-  color: "var(--orange)",
-  cursor: "pointer",
-  fontWeight: 800,
-};
-const gridStyle = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1fr 1fr",
-  gap: 20,
-  marginBottom: 24,
-};
-const lblStyle = {
-  fontSize: "0.65rem",
+  marginBottom: 10,
+  color: "#eb5638",
   fontWeight: 900,
-  color: "var(--muted)",
+  cursor: "pointer",
+};
+const summaryGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(3, 1fr)",
+  gap: 16,
+  marginBottom: 32,
+};
+const summaryItemStyle = { border: "2px solid #000", padding: "16px" };
+const lblStyle = {
+  fontSize: "0.6rem",
+  fontWeight: 900,
   textTransform: "uppercase",
+  color: "#999",
 };
-const valStyle = { fontSize: "1rem", fontWeight: 700 };
-const guestListStyle = {
-  border: "1px solid var(--border)",
-  borderRadius: 10,
-  overflow: "hidden",
+const valStyle = { fontSize: "1rem", fontWeight: 900, marginTop: 4 };
+const manifestHeaderStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginBottom: 12,
 };
+const guestListStyle = { border: "2px solid #000" };
 const guestRowStyle = {
-  padding: "10px 14px",
-  borderBottom: "1px solid var(--border-2)",
-  background: "var(--panel-2)",
-  fontSize: "0.9rem",
+  padding: "12px 20px",
+  borderBottom: "1px solid #eee",
+  display: "flex",
+  justifyContent: "space-between",
 };
-const actionRow = { display: "flex", gap: 10 };
-const foodBtn = {
-  background: "var(--orange)",
+const typeBadgeStyle = {
+  fontSize: "0.6rem",
+  fontWeight: 900,
+  textTransform: "uppercase",
+  opacity: 0.4,
+};
+const actionRowStyle = { display: "flex", gap: 12, marginTop: 24 };
+const foodBtnStyle = {
+  background: "#eb5638",
   color: "white",
   flex: 1,
+  padding: "16px",
+  border: "none",
+  fontWeight: 900,
+  cursor: "pointer",
   display: "flex",
-  gap: 8,
   justifyContent: "center",
+  gap: 8,
 };
-const chatBtn = {
-  background: "var(--panel-2)",
-  border: "1px solid var(--border)",
+const chatBtnStyle = {
+  background: "#000",
+  color: "white",
   flex: 1,
+  padding: "16px",
+  border: "none",
+  fontWeight: 900,
+  cursor: "pointer",
   display: "flex",
-  gap: 8,
   justifyContent: "center",
+  gap: 8,
+};
+const cancelBtnStyle = {
+  background: "none",
+  color: "#ff4444",
+  border: "none",
+  fontWeight: 900,
+  cursor: "pointer",
 };
 const textBtnStyle = {
   background: "none",
   border: "none",
-  color: "var(--primary)",
-  fontWeight: 800,
+  color: "#eb5638",
+  fontWeight: 900,
   fontSize: "0.75rem",
+  cursor: "pointer",
+};
+const backBtnStyle = {
+  background: "none",
+  border: "none",
+  fontWeight: 900,
+  display: "flex",
+  alignItems: "center",
+  gap: 4,
+  marginBottom: 15,
+  cursor: "pointer",
+};
+const closeBtnStyle = { background: "none", border: "none", cursor: "pointer" };
+const viewTransitionStyle = { animation: "fadeIn 0.3s ease" };
+const sendBtnStyle = {
+  background: "#000",
+  color: "#fff",
+  border: "none",
+  width: "50px",
   cursor: "pointer",
   display: "flex",
   alignItems: "center",
-  gap: 5,
-};
-const manifestHeader = {
-  display: "flex",
-  justifyContent: "space-between",
-  marginBottom: 8,
-};
-const closeBtn = {
-  background: "none",
-  border: "none",
-  color: "var(--muted)",
-  cursor: "pointer",
+  justifyContent: "center",
 };

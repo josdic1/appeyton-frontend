@@ -1,10 +1,12 @@
-// src/hooks/useBooking.jsx
-// 2-step booking flow:
-//   1. POST /api/reservations        → gets reservation_id from meta
-//   2. POST /api/reservation-attendees × N (member + guests, parallel)
 import { useState, useCallback } from "react";
 import { api } from "../utils/api";
 
+/**
+ * useBooking Hook
+ * Orchestrates the 2-step reservation process:
+ * 1. Creates the base reservation record.
+ * 2. Creates all attendee records in parallel using the new ID.
+ */
 export function useBooking({ onSuccess, onError } = {}) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -13,40 +15,51 @@ export function useBooking({ onSuccess, onError } = {}) {
     async ({ reservationPayload, attendees = [] }) => {
       setSubmitting(true);
       setError(null);
-      try {
-        // Step 1 — create reservation
-        const resData = await api.post("/api/reservations", reservationPayload);
 
-        // Backend returns ToastResponse; reservation_id is in meta
+      try {
+        // Step 1: Create the Reservation
+        // Path normalized: /api/reservations
+        const resData = await api.post("/reservations", reservationPayload);
+
+        // Extract ID from the 5W1H meta block
         const reservationId = resData?.meta?.reservation_id;
+
         if (!reservationId) {
           throw new Error(
-            resData?.what ||
-              resData?.detail ||
-              "Booking failed — no reservation ID returned",
+            resData?.what || "Booking failed — missing reservation ID.",
           );
         }
 
-        // Step 2 — create attendees in parallel
-        if (attendees.length > 0) {
+        // Step 2: Create Attendees in Parallel
+        // We only proceed if the first step was successful.
+        if (attendees && attendees.length > 0) {
           await Promise.all(
-            attendees.map((a) =>
-              api.post("/api/reservation-attendees", {
+            attendees.map((attendee) =>
+              api.post("/reservation-attendees", {
                 reservation_id: reservationId,
-                name: a.name,
-                attendee_type: a.attendee_type,
-                dietary_restrictions: a.dietary_restrictions || null,
+                name: attendee.name,
+                attendee_type: attendee.attendee_type || "guest",
+                dietary_restrictions: attendee.dietary_restrictions || null,
               }),
             ),
           );
         }
 
-        onSuccess?.({ id: reservationId, ...resData });
+        // Trigger external success callbacks (e.g., redirect or local state sync)
+        if (onSuccess) {
+          onSuccess({ id: reservationId, ...resData });
+        }
+
         return { success: true, reservationId };
       } catch (err) {
-        const msg = err.message || "Something went wrong";
+        const msg =
+          err.message || "An unexpected error occurred during booking.";
         setError(msg);
-        onError?.(msg);
+
+        if (onError) {
+          onError(msg);
+        }
+
         return { success: false, error: msg };
       } finally {
         setSubmitting(false);

@@ -1,81 +1,79 @@
-// src/hooks/useBase.jsx
+// src/hooks/useBase.js
 import { useState, useCallback } from "react";
 import { api, retryRequest } from "../utils/api";
+import { safe } from "../utils/safe";
 
 /**
- * Generic CRUD hook for any base
- * @param {string} basePath - API path (e.g., 'users', 'menu-items', 'dining-rooms')
- * @returns Object with items array and CRUD methods
+ * useBase: Unified CRUD operations for Sterling entities.
+ * @param {string} basePath - The resource endpoint (e.g., 'reservations')
  */
 export function useBase(basePath) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Normalize path: ensures no double slashes and consistent /api prefixing
+  const cleanPath = basePath.replace(/^\/+/, "");
+
   const fetchAll = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await retryRequest(() => api.get(`/api/${basePath}`));
-      setItems(Array.isArray(data) ? data : []);
-      return { success: true, data };
+      // The api utility handles the leading /api/ prefix
+      const data = await retryRequest(() => api.get(cleanPath));
+      const sanitizedData = safe.array(data);
+      setItems(sanitizedData);
+      return { success: true, data: sanitizedData };
     } catch (err) {
       setError(err.message);
-      console.error(`Failed to fetch ${basePath}:`, err);
       return { success: false, error: err.message };
     } finally {
       setLoading(false);
     }
-  }, [basePath]);
+  }, [cleanPath]);
 
   const fetchOne = useCallback(
     async (id) => {
       setLoading(true);
       setError(null);
       try {
-        const data = await retryRequest(() =>
-          api.get(`/api/${basePath}/${id}`),
-        );
+        const data = await retryRequest(() => api.get(`${cleanPath}/${id}`));
         return { success: true, data };
       } catch (err) {
         setError(err.message);
-        console.error(`Failed to fetch ${basePath}/${id}:`, err);
         return { success: false, error: err.message };
       } finally {
         setLoading(false);
       }
     },
-    [basePath],
+    [cleanPath],
   );
 
   const create = useCallback(
-    async (data) => {
+    async (payload) => {
       setLoading(true);
       setError(null);
       try {
-        const created = await retryRequest(() =>
-          api.post(`/api/${basePath}`, data),
-        );
+        const created = await retryRequest(() => api.post(cleanPath, payload));
         setItems((prev) => [...prev, created]);
         return { success: true, data: created };
       } catch (err) {
         setError(err.message);
-        console.error(`Failed to create ${basePath}:`, err);
         return { success: false, error: err.message };
       } finally {
         setLoading(false);
       }
     },
-    [basePath],
+    [cleanPath],
   );
 
   const update = useCallback(
-    async (id, data) => {
+    async (id, payload) => {
       setLoading(true);
       setError(null);
       try {
         const updated = await retryRequest(() =>
-          api.patch(`/api/${basePath}/${id}`, data),
+          api.patch(`${cleanPath}/${id}`, payload),
         );
         setItems((prev) =>
           prev.map((item) => (item.id === id ? updated : item)),
@@ -83,13 +81,12 @@ export function useBase(basePath) {
         return { success: true, data: updated };
       } catch (err) {
         setError(err.message);
-        console.error(`Failed to update ${basePath}/${id}:`, err);
         return { success: false, error: err.message };
       } finally {
         setLoading(false);
       }
     },
-    [basePath],
+    [cleanPath],
   );
 
   const remove = useCallback(
@@ -97,18 +94,17 @@ export function useBase(basePath) {
       setLoading(true);
       setError(null);
       try {
-        await retryRequest(() => api.delete(`/api/${basePath}/${id}`));
+        await retryRequest(() => api.delete(`${cleanPath}/${id}`));
         setItems((prev) => prev.filter((item) => item.id !== id));
         return { success: true };
       } catch (err) {
         setError(err.message);
-        console.error(`Failed to delete ${basePath}/${id}:`, err);
         return { success: false, error: err.message };
       } finally {
         setLoading(false);
       }
     },
-    [basePath],
+    [cleanPath],
   );
 
   const clear = useCallback(() => {

@@ -1,40 +1,94 @@
 // src/components/shared/SyncIndicator.jsx
+import React from "react";
 import { useData } from "../../hooks/useData";
+import { useOnline } from "../../hooks/useOnline";
+import { Loader2, WifiOff, RefreshCcw } from "lucide-react";
 
+/**
+ * SyncIndicator Component
+ * Provides real-time feedback for background data synchronization
+ * and network connectivity status.
+ */
 export function SyncIndicator() {
-  const { refreshing, syncType } = useData(); // Assume useData now tracks the 'type' of sync
-  if (!refreshing) return null;
+  const { refreshing, syncType } = useData();
+  const isOnline = useOnline();
 
-  // Determine if this is a standard refresh or a security update
+  // If we are online and NOT refreshing, we stay hidden.
+  // If we are offline, we ALWAYS show the disconnected status.
+  if (isOnline && !refreshing) return null;
+
   const isSecurity = syncType === "security";
 
   return (
     <div
       role="status"
       aria-live="polite"
-      data-ui="sync-indicator"
       style={{
         position: "fixed",
-        bottom: 16,
-        right: 16,
+        bottom: "24px",
+        left: "24px", // Moved to left to stay clear of ToastContainer on the right
         zIndex: 10000,
         pointerEvents: "none",
+        transition: "all 0.3s ease",
       }}
     >
-      <div data-ui="toast">
-        <div
-          data-ui="toast-dot"
-          data-variant={isSecurity ? "info" : "warning"}
-        />
-        <div style={{ display: "grid", gap: 2 }}>
-          <div data-ui="toast-title">
-            {isSecurity ? "Security Update" : "Syncing"}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+          padding: "10px 16px",
+          background: "var(--black, #1a1a1a)",
+          color: "var(--cream, #ebe5c0)",
+          borderRadius: "8px",
+          border: "2px solid var(--black)",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+          pointerEvents: "auto",
+        }}
+      >
+        {/* ICON LOGIC */}
+        {!isOnline ? (
+          <WifiOff size={16} color="#ef4444" />
+        ) : (
+          <Loader2
+            size={16}
+            className="animate-spin"
+            style={{ animation: "spin 1s linear infinite" }}
+          />
+        )}
+
+        <div style={{ display: "grid", gap: 0 }}>
+          <div
+            style={{
+              fontSize: "0.7rem",
+              fontWeight: 900,
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+              color: !isOnline ? "#ef4444" : "var(--orange, #eb5638)",
+            }}
+          >
+            {!isOnline ? "Offline" : isSecurity ? "Security" : "Syncing"}
           </div>
-          <div data-ui="toast-msg">
-            {isSecurity ? "Applying new permissions..." : "Refreshing data…"}
+
+          <div style={{ fontSize: "0.8rem", fontWeight: 600, opacity: 0.9 }}>
+            {!isOnline
+              ? "Reconnecting..."
+              : isSecurity
+                ? "Updating permissions..."
+                : `Refreshing ${syncType || "data"}...`}
           </div>
         </div>
       </div>
+
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .animate-spin {
+          animation: spin 1s linear infinite;
+        }
+      `}</style>
     </div>
   );
 }
